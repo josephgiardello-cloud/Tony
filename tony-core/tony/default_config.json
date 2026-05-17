@@ -149,6 +149,7 @@
       "cashflow_penalty": 0.16,
       "compliance_penalty": 0.10,
       "irs_penalty": 0.18,
+      "altman_penalty": 0.25,
       "trend_relief": 0.12,
       "charity_relief": 0.10
     },
@@ -159,6 +160,7 @@
       "cashflow_penalty": 0.15,
       "compliance_penalty": 0.10,
       "irs_penalty": 0.15,
+      "altman_penalty": 0.20,
       "trend_relief": 0.20,
       "charity_relief": 0.15
     },
@@ -169,9 +171,22 @@
       "cashflow_penalty": 0.12,
       "compliance_penalty": 0.08,
       "irs_penalty": 0.12,
+      "altman_penalty": 0.12,
       "trend_relief": 0.24,
       "charity_relief": 0.18
     }
+  },
+  "altman_z": {
+    "safe_threshold": 2.6,
+    "distress_threshold": 1.1
+  },
+  "peer_benchmark": {
+    "mode": "percentile_only",
+    "zscore_clip": 3.0,
+    "percentile_weight": 0.7,
+    "zscore_weight": 0.3,
+    "keys": ["size_band", "ntee_code", "state"],
+    "min_group_rows": 20
   },
   "time_weighting": {
     "enabled": true,

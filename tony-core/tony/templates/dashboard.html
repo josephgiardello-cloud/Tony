@@ -533,6 +533,20 @@
       </article>
 
       <article class="card">
+        <p class="eyebrow">Altman Z''</p>
+        <p class="metric-small">
+          {% if summary.get('standard_grant_metrics', {}).get('altman_z_score') is not none %}
+            {{ summary.get('standard_grant_metrics', {}).get('altman_z_score') }}
+          {% else %}
+            n/a
+          {% endif %}
+        </p>
+        <p class="muted">
+          Zone: {{ summary.get('standard_grant_metrics', {}).get('altman_zone', 'unknown') }}
+        </p>
+      </article>
+
+      <article class="card">
         <p class="eyebrow">Revenue Growth (YoY)</p>
         <p class="metric-small">
           {% if summary.get('standard_grant_metrics', {}).get('revenue_growth_yoy') is not none %}

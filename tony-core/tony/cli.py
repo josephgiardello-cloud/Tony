@@ -1,7 +1,7 @@
 ﻿import argparse
 import json
 import logging
-from . import calibration, compliance, ingest, report, score
+from . import calibration, compliance, evaluation, ingest, report, score
 from .config import DEFAULT_CONFIG
 from .dashboard import main as dashboard_main
 from .utils import parse_years
@@ -56,6 +56,16 @@ def main() -> None:
     p_calibrate.add_argument("--bins", type=int, default=10)
     p_calibrate.add_argument("--out", required=True)
 
+    p_evaluate = subparsers.add_parser("evaluate")
+    p_evaluate.add_argument("--input", required=True, help="CSV with risk_probability and outcome columns")
+    p_evaluate.add_argument("--bins", type=int, default=10)
+    p_evaluate.add_argument("--method", choices=["holdout", "kfold"], default="holdout")
+    p_evaluate.add_argument("--test-size", type=float, default=0.3)
+    p_evaluate.add_argument("--folds", type=int, default=5)
+    p_evaluate.add_argument("--random-state", type=int, default=42)
+    p_evaluate.add_argument("--no-stratified", action="store_true")
+    p_evaluate.add_argument("--out", required=True)
+
     p_compliance = subparsers.add_parser("compliance-audit")
     p_compliance.add_argument("--input", required=True, help="JSON profile for governance/compliance controls")
     p_compliance.add_argument("--out", required=True)
@@ -79,6 +89,17 @@ def main() -> None:
         dashboard_main(args.input, args.host, args.port)
     elif args.command == "calibrate":
         calibration.run(args.input, args.out, bins=args.bins)
+    elif args.command == "evaluate":
+        evaluation.run(
+            args.input,
+            args.out,
+            bins=args.bins,
+            method=args.method,
+            test_size=args.test_size,
+            folds=args.folds,
+            random_state=args.random_state,
+            stratified=not args.no_stratified,
+        )
     elif args.command == "compliance-audit":
         compliance.run(args.input, args.out)
     elif args.command == "print-config":

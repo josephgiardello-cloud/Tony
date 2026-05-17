@@ -214,6 +214,7 @@ def test_dashboard_basic_mode_shows_grant_standard_metrics(normalized_payload: P
     assert b"Operating Margin" in response.data
     assert b"Program Expense Ratio" in response.data
     assert b"Leverage (Liabilities/Assets)" in response.data
+    assert b"Altman Z''" in response.data
     assert b"Revenue Growth (YoY)" in response.data
     assert b"Feature History (Standard)" in response.data
     assert b"Model Diagnostics" not in response.data

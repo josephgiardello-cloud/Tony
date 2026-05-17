@@ -61,6 +61,7 @@ def _resolve_scoring_preset(config: dict[str, Any], preset_name: str | None = No
         "cashflow_penalty": 0.15,
         "compliance_penalty": 0.10,
         "irs_penalty": 0.15,
+        "altman_penalty": 0.20,
         "trend_relief": 0.20,
         "charity_relief": 0.15,
     }
@@ -456,10 +457,18 @@ def _feature_contributions(model: Pipeline, latest_row: pd.Series) -> dict[str, 
     latest_df = pd.DataFrame([{feature: latest_row.get(feature) for feature in FEATURE_COLUMNS}])
     transformed = scaler.transform(imputer.transform(latest_df))[0]
     coefficients = classifier.coef_[0]
+    base_logit = float(classifier.intercept_[0]) if hasattr(classifier, "intercept_") else 0.0
     contributions = {feature: float(transformed[idx] * coefficients[idx]) for idx, feature in enumerate(FEATURE_COLUMNS)}
     ranked = sorted(contributions.items(), key=lambda item: abs(item[1]), reverse=True)
+    shap_logit_values = {key: round(value, 5) for key, value in contributions.items()}
+    model_logit = base_logit + float(sum(contributions.values()))
+    model_probability = _sigmoid(model_logit)
     return {
         "feature_contributions": {key: round(value, 5) for key, value in contributions.items()},
+        "shap_linear_logit_values": shap_logit_values,
+        "shap_base_logit": round(base_logit, 5),
+        "shap_total_logit": round(model_logit, 5),
+        "shap_probability_from_logit": round(float(model_probability), 5),
         "top_drivers": [
             {
                 "feature": name,
@@ -489,12 +498,97 @@ def _safe_yoy_growth(series: pd.Series) -> float | None:
     return (latest - previous) / abs(previous)
 
 
+def _safe_ratio(numerator: float | None, denominator: float | None) -> float | None:
+    if numerator is None or denominator is None:
+        return None
+    if abs(float(denominator)) < 1e-9:
+        return None
+    return float(numerator) / float(denominator)
+
+
+def _altman_zscore_nonprofit(latest_row: pd.Series, config: dict[str, Any]) -> dict[str, float | str | None]:
+    assets = _first_numeric(latest_row, ["assets", "total_assets"])
+    liabilities = _first_numeric(latest_row, ["liabilities", "total_liabilities"])
+
+    current_assets = _first_numeric(latest_row, ["current_assets", "cash_and_equivalents", "cash"])
+    current_liabilities = _first_numeric(latest_row, ["current_liabilities", "short_term_liabilities", "accounts_payable"])
+
+    liquidity_proxy_used = False
+    if current_assets is not None and current_liabilities is not None:
+        working_capital = current_assets - current_liabilities
+    elif assets is not None and liabilities is not None:
+        # Fallback proxy when current balance sheet splits are unavailable.
+        working_capital = assets - liabilities
+        liquidity_proxy_used = True
+    else:
+        working_capital = None
+
+    retained_earnings = _first_numeric(latest_row, ["retained_earnings", "unrestricted_net_assets", "net_assets"])
+    ebit = _first_numeric(latest_row, ["ebit", "operating_income"])
+    if ebit is None:
+        revenue = _first_numeric(latest_row, ["revenue", "total_revenue"])
+        expenses = _first_numeric(latest_row, ["expenses", "total_expenses"])
+        if revenue is not None and expenses is not None:
+            ebit = revenue - expenses
+
+    book_equity = _first_numeric(latest_row, ["book_value_equity", "unrestricted_net_assets", "net_assets"])
+    if book_equity is None and assets is not None and liabilities is not None:
+        book_equity = assets - liabilities
+    if retained_earnings is None:
+        retained_earnings = book_equity
+
+    x1 = _safe_ratio(working_capital, assets)
+    x2 = _safe_ratio(retained_earnings, assets)
+    x3 = _safe_ratio(ebit, assets)
+    x4 = _safe_ratio(book_equity, liabilities)
+
+    z_score = None
+    if x1 is not None and x2 is not None and x3 is not None and x4 is not None:
+        z_score = 6.56 * x1 + 3.26 * x2 + 6.72 * x3 + 1.05 * x4
+
+    altman_cfg = config.get("altman_z", {}) if isinstance(config.get("altman_z"), dict) else {}
+    safe_threshold = float(altman_cfg.get("safe_threshold", 2.6))
+    distress_threshold = float(altman_cfg.get("distress_threshold", 1.1))
+
+    zone = "unknown"
+    if z_score is not None:
+        if z_score > safe_threshold:
+            zone = "safe"
+        elif z_score < distress_threshold:
+            zone = "distress"
+        else:
+            zone = "grey"
+
+    return {
+        "altman_z_score": round(float(z_score), 4) if z_score is not None else None,
+        "altman_zone": zone,
+        "altman_x1_working_capital_to_assets": round(float(x1), 4) if x1 is not None else None,
+        "altman_x2_retained_earnings_to_assets": round(float(x2), 4) if x2 is not None else None,
+        "altman_x3_ebit_to_assets": round(float(x3), 4) if x3 is not None else None,
+        "altman_x4_equity_to_liabilities": round(float(x4), 4) if x4 is not None else None,
+        "altman_liquidity_proxy_used": liquidity_proxy_used,
+    }
+
+
+def _altman_penalty(zone: str) -> float:
+    if zone == "distress":
+        return 1.0
+    if zone == "grey":
+        return 0.4
+    if zone == "safe":
+        return 0.0
+    return 0.2
+
+
 def _grant_recommendation(
     risk_probability: float,
     continuity_months: float | None,
     operating_margin: float,
     liabilities_to_assets: float,
     data_confidence_score: float,
+    altman_zone: str | None = None,
+    organizational_health_score: float | None = None,
+    legal_reputation_risk_score: float | None = None,
 ) -> dict[str, Any]:
     reasons: list[str] = []
     if continuity_months is not None and continuity_months < 3:
@@ -505,8 +599,16 @@ def _grant_recommendation(
         reasons.append("high_leverage")
     if data_confidence_score < 0.5:
         reasons.append("low_data_confidence")
+    if altman_zone == "distress":
+        reasons.append("altman_distress_zone")
+    elif altman_zone == "grey":
+        reasons.append("altman_grey_zone")
+    if organizational_health_score is not None and organizational_health_score < 0.45:
+        reasons.append("organizational_health_weak")
+    if legal_reputation_risk_score is not None and legal_reputation_risk_score > 0.6:
+        reasons.append("legal_reputation_risk_high")
 
-    if risk_probability >= 0.65 or len(reasons) >= 2:
+    if risk_probability >= 0.65 or altman_zone == "distress" or len(reasons) >= 2:
         label = "Elevated Risk"
     elif risk_probability >= 0.4 or len(reasons) == 1:
         label = "Conditional"
@@ -528,6 +630,7 @@ def _standard_grant_metrics(
     risk_probability: float,
     donor_top_share: float | None,
     months_cash_on_hand: float | None,
+    altman: dict[str, float | str | None],
 ) -> dict[str, float | None]:
     revenue_growth_yoy = _safe_yoy_growth(feature_frame["revenue"])
     expense_growth_yoy = _safe_yoy_growth(feature_frame["expenses"])
@@ -550,37 +653,161 @@ def _standard_grant_metrics(
         "data_confidence_score": round(float(data_confidence_score), 4),
         "compliance_score": round(float(compliance_score), 4) if compliance_score is not None else None,
         "risk_probability": round(float(risk_probability), 4),
+        "altman_z_score": altman.get("altman_z_score"),
+        "altman_zone": altman.get("altman_zone"),
     }
 
 
-def _peer_benchmark(latest_row: pd.Series, config: dict[str, Any], feature_frame: pd.DataFrame) -> dict[str, Any]:
+def _derive_size_band_from_assets(assets: float | None) -> str | None:
+    if assets is None:
+        return None
+    if assets < 1_000_000:
+        return "micro"
+    if assets < 10_000_000:
+        return "small"
+    if assets < 50_000_000:
+        return "mid"
+    return "large"
+
+
+def _resolve_peer_group_context(
+    latest_row: pd.Series,
+    metadata: dict[str, Any] | None,
+    peer_cfg: dict[str, Any],
+) -> dict[str, str]:
+    metadata = metadata or {}
+    keys = peer_cfg.get("keys", ["size_band", "ntee_code", "state"])
+    if not isinstance(keys, list):
+        keys = ["size_band", "ntee_code", "state"]
+
+    context: dict[str, str] = {}
+    for key in keys:
+        if key == "size_band":
+            assets = _first_numeric(latest_row, ["assets", "total_assets"])
+            value = _derive_size_band_from_assets(assets)
+        else:
+            row_value = latest_row.get(key)
+            value = None
+            if isinstance(row_value, str) and row_value.strip():
+                value = row_value.strip()
+            elif isinstance(metadata.get(key), str) and str(metadata.get(key)).strip():
+                value = str(metadata.get(key)).strip()
+        if value:
+            context[str(key)] = str(value)
+    return context
+
+
+def _peer_benchmark(
+    latest_row: pd.Series,
+    config: dict[str, Any],
+    feature_frame: pd.DataFrame,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     reference = _load_reference_profiles(config)
-    peer_pool = reference[FEATURE_COLUMNS].copy() if not reference.empty else feature_frame[FEATURE_COLUMNS].copy()
+    peer_cfg = config.get("peer_benchmark", {}) if isinstance(config.get("peer_benchmark"), dict) else {}
+
+    working_reference = reference.copy()
+    selected_group: dict[str, str] = {}
+    group_rows = None
+
+    if not working_reference.empty:
+        min_group_rows = max(int(peer_cfg.get("min_group_rows", 20)), 1)
+        context = _resolve_peer_group_context(latest_row, metadata, peer_cfg)
+        filtered = working_reference
+        for key, value in context.items():
+            if key in filtered.columns:
+                narrowed = filtered[filtered[key].astype(str).str.strip().str.lower() == value.lower()]
+                if not narrowed.empty:
+                    filtered = narrowed
+        if len(filtered) >= min_group_rows:
+            working_reference = filtered
+            selected_group = context
+            group_rows = int(len(filtered))
+        else:
+            group_rows = int(len(working_reference))
+
+    peer_pool = working_reference[FEATURE_COLUMNS].copy() if not working_reference.empty else feature_frame[FEATURE_COLUMNS].copy()
+
+    mode = str(peer_cfg.get("mode", "percentile_only")).strip().lower()
+    if mode not in {"percentile_only", "zscore_only", "blended"}:
+        mode = "percentile_only"
+    zscore_clip = max(float(peer_cfg.get("zscore_clip", 3.0)), 0.5)
+    percentile_weight = max(float(peer_cfg.get("percentile_weight", 0.7)), 0.0)
+    zscore_weight = max(float(peer_cfg.get("zscore_weight", 0.3)), 0.0)
+    weight_total = percentile_weight + zscore_weight
+    if weight_total <= 0:
+        percentile_weight, zscore_weight = 0.7, 0.3
+        weight_total = 1.0
+    percentile_weight /= weight_total
+    zscore_weight /= weight_total
 
     if peer_pool.empty:
         return {
             "peer_percentiles": {},
+            "peer_z_scores": {},
             "peer_benchmark_score": None,
+            "peer_percentile_score": None,
+            "peer_zscore_score": None,
+            "peer_benchmark_mode": mode,
+            "peer_group_filters": selected_group,
+            "peer_group_rows": group_rows,
         }
 
     settings = _normalization_settings(config)
     percentiles: dict[str, float] = {}
+    z_scores: dict[str, float] = {}
+    zscore_scores: list[float] = []
     for feature in FEATURE_COLUMNS:
         population = pd.to_numeric(peer_pool[feature], errors="coerce").dropna()
         if population.empty:
             continue
         value = float(latest_row.get(feature) or 0.0)
         positive = bool(settings.get(feature, {}).get("positive", True))
+
+        mean = float(population.mean())
+        std = float(population.std(ddof=0))
+        std = std if std > 1e-9 else 1.0
+
         if positive:
             percentile = float((population <= value).mean() * 100)
+            z_value = (value - mean) / std
         else:
             percentile = float((population >= value).mean() * 100)
-        percentiles[feature] = round(percentile, 1)
+            z_value = (mean - value) / std
 
-    benchmark = round(float(np.mean(list(percentiles.values()))) / 100, 4) if percentiles else None
+        z_clipped = float(min(max(z_value, -zscore_clip), zscore_clip))
+        zscore_component = (z_clipped + zscore_clip) / (2 * zscore_clip)
+
+        percentiles[feature] = round(percentile, 1)
+        z_scores[feature] = round(z_value, 4)
+        zscore_scores.append(zscore_component)
+
+    percentile_score = round(float(np.mean(list(percentiles.values()))) / 100, 4) if percentiles else None
+    zscore_score = round(float(np.mean(zscore_scores)), 4) if zscore_scores else None
+
+    if mode == "zscore_only":
+        benchmark = zscore_score
+    elif mode == "blended":
+        if percentile_score is None and zscore_score is None:
+            benchmark = None
+        elif percentile_score is None:
+            benchmark = zscore_score
+        elif zscore_score is None:
+            benchmark = percentile_score
+        else:
+            benchmark = round(percentile_weight * percentile_score + zscore_weight * zscore_score, 4)
+    else:
+        benchmark = percentile_score
+
     return {
         "peer_percentiles": percentiles,
+        "peer_z_scores": z_scores,
         "peer_benchmark_score": benchmark,
+        "peer_percentile_score": percentile_score,
+        "peer_zscore_score": zscore_score,
+        "peer_benchmark_mode": mode,
+        "peer_group_filters": selected_group,
+        "peer_group_rows": group_rows,
     }
 
 
@@ -751,6 +978,168 @@ def _compensation_burden(latest_row: pd.Series) -> dict[str, float | None]:
     }
 
 
+def _coerce_unit_interval(value: Any) -> float | None:
+    numeric = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    if pd.isna(numeric):
+        return None
+    v = float(numeric)
+    if v > 1.0:
+        v = v / 100.0
+    return min(max(v, 0.0), 1.0)
+
+
+def _coerce_non_negative(value: Any) -> float | None:
+    numeric = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    if pd.isna(numeric):
+        return None
+    return max(float(numeric), 0.0)
+
+
+def _financial_depth_metrics(latest_row: pd.Series) -> dict[str, float | None]:
+    current_assets = _first_numeric(latest_row, ["current_assets", "cash_and_equivalents", "cash"])
+    current_liabilities = _first_numeric(latest_row, ["current_liabilities", "short_term_liabilities", "accounts_payable"])
+    inventories = _first_numeric(latest_row, ["inventory", "inventories"]) or 0.0
+
+    working_capital = None
+    working_capital_ratio = None
+    current_ratio = None
+    quick_ratio = None
+
+    assets = _first_numeric(latest_row, ["assets", "total_assets"])
+    if current_assets is not None and current_liabilities is not None:
+        working_capital = current_assets - current_liabilities
+        working_capital_ratio = _safe_ratio(working_capital, assets)
+        current_ratio = _safe_ratio(current_assets, current_liabilities)
+        quick_ratio = _safe_ratio(current_assets - inventories, current_liabilities)
+
+    fundraising_expense = _first_numeric(latest_row, ["fundraising_expense", "fundraising_cost", "fundraising_expenses"])
+    contributions = _first_numeric(latest_row, ["contributions_revenue", "donations_revenue", "contributed_revenue"])
+    fundraising_cost_to_raise_dollar = _safe_ratio(fundraising_expense, contributions)
+
+    investment_income = _first_numeric(latest_row, ["investment_income", "investment_return", "investment_revenue"])
+    endowment_assets = _first_numeric(latest_row, ["endowment_assets", "endowment_balance", "quasi_endowment"])
+    endowment_draw = _first_numeric(latest_row, ["endowment_draw", "investment_spending", "draw_from_endowment"])
+    investment_income_ratio = _safe_ratio(investment_income, _first_numeric(latest_row, ["revenue", "total_revenue"]))
+    endowment_draw_rate = _safe_ratio(endowment_draw, endowment_assets)
+
+    return {
+        "working_capital": round(float(working_capital), 2) if working_capital is not None else None,
+        "working_capital_ratio": round(float(working_capital_ratio), 4) if working_capital_ratio is not None else None,
+        "current_ratio": round(float(current_ratio), 4) if current_ratio is not None else None,
+        "quick_ratio": round(float(quick_ratio), 4) if quick_ratio is not None else None,
+        "fundraising_cost_to_raise_dollar": round(float(fundraising_cost_to_raise_dollar), 4) if fundraising_cost_to_raise_dollar is not None else None,
+        "investment_income_ratio": round(float(investment_income_ratio), 4) if investment_income_ratio is not None else None,
+        "endowment_draw_rate": round(float(endowment_draw_rate), 4) if endowment_draw_rate is not None else None,
+    }
+
+
+def _organizational_health(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    metadata = metadata or {}
+
+    board_independence = _coerce_unit_interval(metadata.get("board_independence"))
+    board_turnover = _coerce_unit_interval(metadata.get("board_turnover_rate"))
+    succession_plan = _coerce_unit_interval(metadata.get("succession_plan_score"))
+    conflict_policy = _coerce_unit_interval(metadata.get("conflict_of_interest_policy_score"))
+    board_diversity = _coerce_unit_interval(metadata.get("board_diversity_index"))
+
+    governance_components = [
+        board_independence,
+        (1.0 - board_turnover) if board_turnover is not None else None,
+        succession_plan,
+        conflict_policy,
+        board_diversity,
+    ]
+    governance_values = [v for v in governance_components if v is not None]
+    governance_score = float(np.mean(governance_values)) if governance_values else None
+
+    impact_outcome_rate = _coerce_unit_interval(metadata.get("outcome_achievement_rate"))
+    impact_eval_score = _coerce_unit_interval(metadata.get("impact_evaluation_score"))
+    beneficiary_reach_growth = _coerce_unit_interval(metadata.get("beneficiary_reach_growth"))
+    impact_values = [v for v in [impact_outcome_rate, impact_eval_score, beneficiary_reach_growth] if v is not None]
+    impact_score = float(np.mean(impact_values)) if impact_values else None
+
+    cybersecurity_maturity = _coerce_unit_interval(metadata.get("cybersecurity_maturity"))
+    continuity_plan = _coerce_unit_interval(metadata.get("business_continuity_plan_score"))
+    key_person_risk = _coerce_unit_interval(metadata.get("key_person_risk"))
+    ops_values = [
+        v
+        for v in [
+            cybersecurity_maturity,
+            continuity_plan,
+            (1.0 - key_person_risk) if key_person_risk is not None else None,
+        ]
+        if v is not None
+    ]
+    operational_resilience_score = float(np.mean(ops_values)) if ops_values else None
+
+    demand_trend = _coerce_unit_interval(metadata.get("demand_trend_score"))
+    market_share_change = _coerce_unit_interval(metadata.get("market_share_change_score"))
+    competitor_pressure = _coerce_unit_interval(metadata.get("competitor_pressure"))
+    market_values = [
+        v
+        for v in [
+            demand_trend,
+            market_share_change,
+            (1.0 - competitor_pressure) if competitor_pressure is not None else None,
+        ]
+        if v is not None
+    ]
+    market_position_score = float(np.mean(market_values)) if market_values else None
+
+    staff_turnover = _coerce_unit_interval(metadata.get("staff_turnover_rate"))
+    volunteer_engagement = _coerce_unit_interval(metadata.get("volunteer_engagement_score"))
+    training_investment = _coerce_unit_interval(metadata.get("training_investment_score"))
+    dei_index = _coerce_unit_interval(metadata.get("dei_index"))
+    human_values = [
+        v
+        for v in [
+            (1.0 - staff_turnover) if staff_turnover is not None else None,
+            volunteer_engagement,
+            training_investment,
+            dei_index,
+        ]
+        if v is not None
+    ]
+    human_capital_score = float(np.mean(human_values)) if human_values else None
+
+    litigation_count = _coerce_non_negative(metadata.get("open_litigation_count"))
+    watchdog_flags = _coerce_non_negative(metadata.get("watchdog_flags"))
+    adverse_media = _coerce_unit_interval(metadata.get("adverse_media_score"))
+    whistleblower_cases = _coerce_non_negative(metadata.get("whistleblower_cases"))
+
+    litigation_risk = min((litigation_count or 0.0) / 5.0, 1.0)
+    watchdog_risk = min((watchdog_flags or 0.0) / 4.0, 1.0)
+    whistleblower_risk = min((whistleblower_cases or 0.0) / 3.0, 1.0)
+    legal_risk_components = [litigation_risk, watchdog_risk, whistleblower_risk]
+    if adverse_media is not None:
+        legal_risk_components.append(adverse_media)
+    legal_reputation_risk_score = float(np.mean(legal_risk_components)) if legal_risk_components else None
+
+    fraud_signal_score = max(watchdog_risk, whistleblower_risk, adverse_media or 0.0)
+
+    health_components = [
+        governance_score,
+        impact_score,
+        operational_resilience_score,
+        market_position_score,
+        human_capital_score,
+        (1.0 - legal_reputation_risk_score) if legal_reputation_risk_score is not None else None,
+    ]
+    health_values = [v for v in health_components if v is not None]
+    organizational_health_score = float(np.mean(health_values)) if health_values else None
+
+    return {
+        "governance_score": round(float(governance_score), 4) if governance_score is not None else None,
+        "program_impact_score": round(float(impact_score), 4) if impact_score is not None else None,
+        "operational_resilience_score": round(float(operational_resilience_score), 4) if operational_resilience_score is not None else None,
+        "market_position_score": round(float(market_position_score), 4) if market_position_score is not None else None,
+        "human_capital_score": round(float(human_capital_score), 4) if human_capital_score is not None else None,
+        "legal_reputation_risk_score": round(float(legal_reputation_risk_score), 4) if legal_reputation_risk_score is not None else None,
+        "fraud_signal_score": round(float(fraud_signal_score), 4),
+        "organizational_health_score": round(float(organizational_health_score), 4) if organizational_health_score is not None else None,
+    }
+
+
 def _adjusted_risk_probability(
     base_prob: float,
     adjustments: dict[str, float | None],
@@ -763,6 +1152,7 @@ def _adjusted_risk_probability(
         + weights.get("cashflow_penalty", 0.0) * float(adjustments.get("cashflow_penalty") or 0.0)
         + weights.get("compliance_penalty", 0.0) * float(adjustments.get("compliance_penalty") or 0.0)
         + weights.get("irs_penalty", 0.0) * float(adjustments.get("irs_penalty") or 0.0)
+        + weights.get("altman_penalty", 0.0) * float(adjustments.get("altman_penalty") or 0.0)
     )
 
     relief_total = (
@@ -783,6 +1173,7 @@ def _adjusted_risk_probability(
         "cashflow_penalty": round(float(adjustments.get("cashflow_penalty") or 0.0), 4),
         "compliance_penalty": round(float(adjustments.get("compliance_penalty") or 0.0), 4) if adjustments.get("compliance_penalty") is not None else None,
         "irs_penalty": round(float(adjustments.get("irs_penalty") or 0.0), 4) if adjustments.get("irs_penalty") is not None else None,
+        "altman_penalty": round(float(adjustments.get("altman_penalty") or 0.0), 4) if adjustments.get("altman_penalty") is not None else None,
         "trend_relief": round(float(adjustments.get("trend_relief") or 0.0), 4),
         "charity_relief": round(float(adjustments.get("charity_relief") or 0.0), 4) if adjustments.get("charity_relief") is not None else None,
     }
@@ -865,11 +1256,14 @@ def run(
     weighted_score, normalized_features = _weighted_health_score(latest, weights, config, entity_type)
     time_weighted_score, time_weighted_features = _time_weighted_health_score(feature_frame, weights, config, entity_type)
     explanation = _feature_contributions(model, latest)
-    peer_benchmark = _peer_benchmark(latest, config, feature_frame)
+    peer_benchmark = _peer_benchmark(latest, config, feature_frame, payload.get("metadata", {}))
     trend_metrics = _trend_stability(feature_frame)
     donor_quality = _donor_and_revenue_quality(latest)
     cashflow = _cashflow_durability(latest)
+    financial_depth = _financial_depth_metrics(latest)
     compensation = _compensation_burden(latest)
+    organizational_health = _organizational_health(payload.get("metadata", {}))
+    altman = _altman_zscore_nonprofit(latest, config)
     data_confidence = _data_confidence(payload)
     compliance_score = _resolve_compliance_score(payload)
     external_signals = _resolve_external_signal_scores(payload)
@@ -885,6 +1279,7 @@ def run(
         "donor_penalty": 1.0 - float(donor_quality["donor_concentration_score"] or 0.0),
         "cashflow_penalty": 1.0 - float(cashflow["cashflow_durability_score"] or 0.0),
         "irs_penalty": external_signals["irs_teos_status_risk"],
+        "altman_penalty": _altman_penalty(str(altman.get("altman_zone") or "unknown")),
         "charity_relief": external_signals["charity_navigator_score"],
         "trend_relief": max(min(trend_metrics["trend_stability_score"], 1.0), -1.0),
     }
@@ -916,6 +1311,7 @@ def run(
         risk_probability=final_risk_probability,
         donor_top_share=donor_quality["donor_top_share"],
         months_cash_on_hand=cashflow["months_cash_on_hand"],
+        altman=altman,
     )
     grant_recommendation = _grant_recommendation(
         risk_probability=final_risk_probability,
@@ -923,6 +1319,9 @@ def run(
         operating_margin=float(latest["operating_margin"]),
         liabilities_to_assets=float(latest["liabilities_to_assets"]),
         data_confidence_score=data_confidence,
+        altman_zone=str(altman.get("altman_zone") or "unknown"),
+        organizational_health_score=organizational_health.get("organizational_health_score"),
+        legal_reputation_risk_score=organizational_health.get("legal_reputation_risk_score"),
     )
 
     history_frame = feature_frame[
@@ -978,6 +1377,12 @@ def run(
         "time_weighted_features": time_weighted_features,
         "peer_benchmark_score": peer_benchmark["peer_benchmark_score"],
         "peer_percentiles": peer_benchmark["peer_percentiles"],
+        "peer_z_scores": peer_benchmark["peer_z_scores"],
+        "peer_percentile_score": peer_benchmark["peer_percentile_score"],
+        "peer_zscore_score": peer_benchmark["peer_zscore_score"],
+        "peer_benchmark_mode": peer_benchmark["peer_benchmark_mode"],
+        "peer_group_filters": peer_benchmark["peer_group_filters"],
+        "peer_group_rows": peer_benchmark["peer_group_rows"],
         "data_confidence_score": data_confidence,
         "compliance_score": round(compliance_score, 4) if compliance_score is not None else None,
         "irs_teos_status_risk": external_signals["irs_teos_status_risk"],
@@ -985,11 +1390,14 @@ def run(
         "trend_metrics": trend_metrics,
         "composite_components": composite_components,
         "scoring_preset": preset_name,
+        "altman": altman,
         **uncertainty,
         **final_index,
         **donor_quality,
         **cashflow,
+        **financial_depth,
         **compensation,
+        **organizational_health,
         "continuity_inputs": {
             "unrestricted_net_assets": round(unrestricted_net_assets, 2),
             "annual_expenses": round(annual_expenses, 2),
@@ -1019,6 +1427,8 @@ def run(
             "final_risk_probability": final_risk_probability,
             "final_risk_index": final_index["final_risk_index"],
             "descriptor": summary["descriptor"],
+            "altman_z_score": altman.get("altman_z_score"),
+            "altman_zone": altman.get("altman_zone"),
         },
     }
 

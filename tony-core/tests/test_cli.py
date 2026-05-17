@@ -140,6 +140,51 @@ def test_cli_calibrate_dispatches(monkeypatch, tmp_path: Path) -> None:
     assert captured["bins"] == 7
 
 
+def test_cli_evaluate_dispatches(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_evaluation_run(input_file, out_file, bins=10, method="holdout", test_size=0.3, folds=5, random_state=42, stratified=True):
+        captured["input_file"] = input_file
+        captured["out_file"] = out_file
+        captured["bins"] = bins
+        captured["method"] = method
+        captured["test_size"] = test_size
+        captured["folds"] = folds
+        captured["random_state"] = random_state
+        captured["stratified"] = stratified
+        return {"summary": {"rows": 1}}
+
+    monkeypatch.setattr(cli.evaluation, "run", _fake_evaluation_run)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tony",
+            "evaluate",
+            "--input",
+            str(tmp_path / "bench.csv"),
+            "--bins",
+            "9",
+            "--method",
+            "kfold",
+            "--folds",
+            "4",
+            "--random-state",
+            "7",
+            "--no-stratified",
+            "--out",
+            str(tmp_path / "evaluation.json"),
+        ],
+    )
+
+    cli.main()
+    assert captured["bins"] == 9
+    assert captured["method"] == "kfold"
+    assert captured["folds"] == 4
+    assert captured["random_state"] == 7
+    assert captured["stratified"] is False
+
+
 def test_cli_compliance_dispatches(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
 

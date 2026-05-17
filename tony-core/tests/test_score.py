@@ -40,6 +40,8 @@ def test_score_run_writes_history(normalized_payload: Path, tmp_path: Path) -> N
     assert stored["history"][1]["risk_probability"] < 0.5
     assert "normalized_features" in stored["summary"]
     assert "feature_contributions" in stored["summary"]
+    assert "shap_linear_logit_values" in stored["summary"]
+    assert "shap_base_logit" in stored["summary"]
 
 
 def test_score_risk_adjustable_sparse_payload_returns_unknown_descriptor() -> None:
@@ -283,3 +285,200 @@ def test_score_result_includes_layered_details_and_preset(tmp_path: Path) -> Non
     assert "layer_3_adjustments" in details
     assert "layer_4_final" in details
     assert details["layer_3_adjustments"]["preset"] == "balanced"
+
+
+def test_score_includes_altman_z_baseline_and_zone(tmp_path: Path) -> None:
+    payload = {
+        "metadata": {"source": "test"},
+        "records": [
+            {
+                "year": 2023,
+                "revenue": 1200000,
+                "expenses": 1000000,
+                "assets": 2000000,
+                "liabilities": 800000,
+                "unrestricted_net_assets": 1200000,
+                "program_expenses": 760000,
+                "current_assets": 900000,
+                "current_liabilities": 400000,
+                "retained_earnings": 1100000,
+                "ebit": 200000,
+                "book_value_equity": 1200000,
+            }
+        ],
+    }
+    in_file = tmp_path / "altman_input.json"
+    out_file = tmp_path / "altman_scored.json"
+    in_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run(str(in_file), "nonprofit", 12, str(out_file))
+    standard = result["summary"]["standard_grant_metrics"]
+    altman = result["summary"]["altman"]
+
+    assert standard["altman_z_score"] is not None
+    assert standard["altman_zone"] in {"safe", "grey", "distress"}
+    assert altman["altman_z_score"] == standard["altman_z_score"]
+    assert result["details"]["layer_4_final"]["altman_zone"] == standard["altman_zone"]
+
+
+def test_score_supports_zscore_peer_benchmark_mode(tmp_path: Path) -> None:
+    payload = {
+        "metadata": {"source": "test"},
+        "records": [
+            {
+                "year": 2023,
+                "revenue": 1200000,
+                "expenses": 1000000,
+                "assets": 2000000,
+                "liabilities": 800000,
+                "unrestricted_net_assets": 1200000,
+                "program_expenses": 760000,
+            }
+        ],
+    }
+    cfg = {
+        "weights": {
+            "continuity_months": 0.35,
+            "operating_margin": 0.2,
+            "program_expense_ratio": 0.2,
+            "liabilities_to_assets": 0.15,
+            "revenue_volatility": 0.1,
+        },
+        "thresholds": {
+            "continuity_low": 6.0,
+            "continuity_moderate": 3.0,
+            "risk_probability_high": 0.66,
+            "risk_probability_moderate": 0.4,
+        },
+        "model": {
+            "random_state": 42,
+            "max_iter": 1000,
+            "class_weight": "balanced",
+            "cache_models": False,
+            "reference_profiles": [
+                {
+                    "continuity_months": 2.0,
+                    "operating_margin": -0.1,
+                    "program_expense_ratio": 0.5,
+                    "liabilities_to_assets": 1.0,
+                    "revenue_volatility": 0.5,
+                    "risk_label": 1,
+                },
+                {
+                    "continuity_months": 9.0,
+                    "operating_margin": 0.08,
+                    "program_expense_ratio": 0.8,
+                    "liabilities_to_assets": 0.35,
+                    "revenue_volatility": 0.1,
+                    "risk_label": 0,
+                },
+            ],
+        },
+        "scoring_preset": "balanced",
+        "scoring_presets": {
+            "balanced": {
+                "benchmark_gap": 0.25,
+                "confidence_penalty": 0.2,
+                "donor_penalty": 0.15,
+                "cashflow_penalty": 0.15,
+                "compliance_penalty": 0.1,
+                "irs_penalty": 0.15,
+                "altman_penalty": 0.2,
+                "trend_relief": 0.2,
+                "charity_relief": 0.15,
+            }
+        },
+        "peer_benchmark": {
+            "mode": "zscore_only",
+            "zscore_clip": 3.0,
+            "percentile_weight": 0.7,
+            "zscore_weight": 0.3,
+        },
+        "time_weighting": {"enabled": False},
+        "uncertainty": {"enabled": False},
+        "final_index": {"ml_weight": 0.7, "health_weight": 0.3},
+        "normalization": {},
+        "labeling": {
+            "risk_points_cutoff": 3,
+            "severe_margin": -0.1,
+            "weak_program_ratio": 0.55,
+            "high_revenue_volatility": 0.35,
+        },
+        "entity_profiles": {},
+        "entity_thresholds": {},
+        "altman_z": {"safe_threshold": 2.6, "distress_threshold": 1.1},
+    }
+
+    in_file = tmp_path / "peer_mode_input.json"
+    out_file = tmp_path / "peer_mode_scored.json"
+    cfg_file = tmp_path / "peer_mode_config.json"
+    in_file.write_text(json.dumps(payload), encoding="utf-8")
+    cfg_file.write_text(json.dumps(cfg), encoding="utf-8")
+
+    result = run(str(in_file), "nonprofit", 12, str(out_file), config_path=str(cfg_file))
+    summary = result["summary"]
+
+    assert summary["peer_benchmark_mode"] == "zscore_only"
+    assert summary["peer_zscore_score"] is not None
+    assert summary["peer_benchmark_score"] == summary["peer_zscore_score"]
+    assert "peer_group_filters" in summary
+
+
+def test_score_includes_broader_organizational_and_financial_depth_metrics(tmp_path: Path) -> None:
+    payload = {
+        "metadata": {
+            "board_independence": 0.8,
+            "board_turnover_rate": 0.15,
+            "succession_plan_score": 0.7,
+            "conflict_of_interest_policy_score": 0.9,
+            "board_diversity_index": 0.65,
+            "outcome_achievement_rate": 0.75,
+            "impact_evaluation_score": 0.7,
+            "beneficiary_reach_growth": 0.6,
+            "cybersecurity_maturity": 0.5,
+            "business_continuity_plan_score": 0.6,
+            "key_person_risk": 0.4,
+            "staff_turnover_rate": 0.2,
+            "volunteer_engagement_score": 0.7,
+            "training_investment_score": 0.55,
+            "dei_index": 0.6,
+            "open_litigation_count": 1,
+            "watchdog_flags": 0,
+            "adverse_media_score": 0.1,
+            "whistleblower_cases": 0,
+        },
+        "records": [
+            {
+                "year": 2023,
+                "revenue": 1400000,
+                "expenses": 1200000,
+                "assets": 2600000,
+                "liabilities": 900000,
+                "unrestricted_net_assets": 1300000,
+                "program_expenses": 860000,
+                "current_assets": 700000,
+                "current_liabilities": 300000,
+                "fundraising_expense": 90000,
+                "contributions_revenue": 450000,
+                "investment_income": 70000,
+                "endowment_assets": 1000000,
+                "endowment_draw": 45000,
+            }
+        ],
+    }
+
+    in_file = tmp_path / "org_health_input.json"
+    out_file = tmp_path / "org_health_scored.json"
+    in_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run(str(in_file), "nonprofit", 12, str(out_file))
+    summary = result["summary"]
+
+    assert summary["current_ratio"] == pytest.approx(700000 / 300000, abs=1e-4)
+    assert summary["working_capital_ratio"] == pytest.approx((700000 - 300000) / 2600000, abs=1e-4)
+    assert summary["fundraising_cost_to_raise_dollar"] == pytest.approx(0.2, abs=1e-6)
+    assert summary["endowment_draw_rate"] == pytest.approx(0.045, abs=1e-6)
+    assert summary["governance_score"] is not None
+    assert summary["program_impact_score"] is not None
+    assert summary["organizational_health_score"] is not None
+    assert summary["legal_reputation_risk_score"] is not None
