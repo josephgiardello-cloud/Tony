@@ -1,0 +1,141 @@
+{
+  "retrieved_at": "2026-05-16",
+  "sources": [
+    {
+      "name": "IRS annual exempt organization information returns",
+      "url": "https://www.irs.gov/charities-non-profits/annual-exempt-organization-information-returns",
+      "facts": [
+        "Exempt organizations are generally required to file annual returns unless exceptions apply.",
+        "If an organization does not file as required for three consecutive years, it automatically loses tax-exempt status.",
+        "Late filing can trigger penalties."
+      ]
+    },
+    {
+      "name": "IRS Tax Exempt Organization Search bulk data",
+      "url": "https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads",
+      "facts": [
+        "IRS publishes bulk datasets including Pub. 78 data and Automatic Revocation of Exemption list.",
+        "Data download endpoints include revocation and active exempt organization datasets."
+      ]
+    },
+    {
+      "name": "OFAC sanctions guidance and list services",
+      "url": "https://ofac.treasury.gov/",
+      "facts": [
+        "OFAC administers sanctions programs and provides sanctions list search services.",
+        "OFAC provides civil penalties and enforcement information and compliance hotline resources.",
+        "Organizations can use sanctions list search and reporting resources for compliance controls."
+      ]
+    },
+    {
+      "name": "Charity Navigator accountability and finance indicators",
+      "url": "https://www.charitynavigator.org/ein/530196605",
+      "facts": [
+        "American Red Cross is displayed as 99% Four-Star Charity.",
+        "Beacon indicators explicitly include controls such as Records Retention Policy and Financial Statements.",
+        "Accountability section includes No Material Diversion of Assets and Tax Form disclosure checks."
+      ]
+    }
+  ],
+  "control_baseline": [
+    {
+      "control_id": "GOV-001",
+      "domain": "governance",
+      "severity": "high",
+      "required": true,
+      "requirement": "Conflict of interest policy with annual attestations.",
+      "evidence_standard": "Approved policy, annual attestation records, and board review cadence.",
+      "source_url": "https://www.irs.gov/pub/irs-tege/governance_practices.pdf"
+    },
+    {
+      "control_id": "GOV-002",
+      "domain": "governance",
+      "severity": "high",
+      "required": true,
+      "requirement": "Board independence and related-party oversight.",
+      "evidence_standard": "Board roster independence assessment and related-party transaction approvals.",
+      "source_url": "https://www.irs.gov/pub/irs-tege/governance_practices.pdf"
+    },
+    {
+      "control_id": "FIL-001",
+      "domain": "filings",
+      "severity": "high",
+      "required": true,
+      "requirement": "Annual filing calendar and due-date tracking.",
+      "evidence_standard": "Form 990/990-EZ/990-N filing status by period and due-date monitor.",
+      "source_url": "https://www.irs.gov/charities-non-profits/annual-exempt-organization-information-returns"
+    },
+    {
+      "control_id": "FIL-002",
+      "domain": "filings",
+      "severity": "high",
+      "required": true,
+      "requirement": "Late filing escalation to prevent automatic revocation.",
+      "evidence_standard": "Escalation trail when filings are late or missing across years.",
+      "source_url": "https://www.irs.gov/charities-non-profits/annual-exempt-organization-information-returns"
+    },
+    {
+      "control_id": "FID-001",
+      "domain": "fiduciary",
+      "severity": "high",
+      "required": true,
+      "requirement": "Restricted funds tracking and spend controls.",
+      "evidence_standard": "Restriction tags, allowed-use rules, and exception logs.",
+      "source_url": "https://www.charitynavigator.org/ein/530196605"
+    },
+    {
+      "control_id": "FID-002",
+      "domain": "fiduciary",
+      "severity": "high",
+      "required": true,
+      "requirement": "Grant condition monitoring and evidence.",
+      "evidence_standard": "Grant terms registry, milestone checks, and supporting evidence.",
+      "source_url": "https://www.irs.gov/charities-non-profits/charitable-organizations/life-cycle-of-a-public-charity-ongoing-compliance"
+    },
+    {
+      "control_id": "AML-001",
+      "domain": "third_party",
+      "severity": "high",
+      "required": true,
+      "requirement": "Sanctions/AML checks for counterparties and disbursement beneficiaries.",
+      "evidence_standard": "Screening timestamp, list source version, and match disposition records.",
+      "source_url": "https://ofac.treasury.gov/"
+    },
+    {
+      "control_id": "DUE-001",
+      "domain": "third_party",
+      "severity": "medium",
+      "required": true,
+      "requirement": "Vendor and partner due diligence with periodic renewals.",
+      "evidence_standard": "Risk-tiered due diligence records and renewal checkpoints.",
+      "source_url": "https://ofac.treasury.gov/additional-ofac-resources/ofac-information-for-industry-groups"
+    },
+    {
+      "control_id": "POL-001",
+      "domain": "policy",
+      "severity": "medium",
+      "required": true,
+      "requirement": "Policy versioning and organization-wide attestations.",
+      "evidence_standard": "Policy version history and attestation completion logs.",
+      "source_url": "https://www.charitynavigator.org/ein/530196605"
+    },
+    {
+      "control_id": "INC-001",
+      "domain": "incident",
+      "severity": "medium",
+      "required": true,
+      "requirement": "Incident intake, investigation workflow, and remediation tracking.",
+      "evidence_standard": "Case lifecycle records with owner, SLA, and closure evidence.",
+      "source_url": "https://www.irs.gov/charities-non-profits/charitable-organizations/life-cycle-of-a-public-charity-significant-events"
+    },
+    {
+      "control_id": "ACC-001",
+      "domain": "access",
+      "severity": "high",
+      "required": true,
+      "requirement": "Role-based access control and action-level audit trail.",
+      "evidence_standard": "Role assignment matrix, privileged access review, and immutable action logs.",
+      "source_url": "https://www.charitynavigator.org/ein/530196605"
+    }
+  ]
+}

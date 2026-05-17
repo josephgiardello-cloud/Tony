@@ -18,6 +18,18 @@ CONTROL_CATALOG: list[dict[str, str]] = [
     {"id": "ACC-001", "domain": "access", "severity": "high", "requirement": "Role-based access control and action-level audit trail"},
 ]
 
+DEFAULT_BASELINE_FILE = Path(__file__).resolve().parent.parent / "baselines" / "external_compliance_controls.json"
+
+
+def _load_baseline(baseline_file: str | None = None) -> dict[str, Any]:
+    target = Path(baseline_file) if baseline_file else DEFAULT_BASELINE_FILE
+    if not target.exists():
+        return {"sources": [], "control_baseline": []}
+    try:
+        return json.loads(target.read_text(encoding="utf-8"))
+    except Exception:
+        return {"sources": [], "control_baseline": []}
+
 
 def _is_present(section: dict[str, Any], keys: list[str]) -> bool:
     for key in keys:
@@ -29,7 +41,12 @@ def _is_present(section: dict[str, Any], keys: list[str]) -> bool:
     return False
 
 
-def evaluate(profile: dict[str, Any]) -> dict[str, Any]:
+def evaluate(profile: dict[str, Any], baseline_file: str | None = None) -> dict[str, Any]:
+    baseline = _load_baseline(baseline_file)
+    baseline_controls = {
+        row.get("control_id"): row for row in baseline.get("control_baseline", []) if row.get("control_id")
+    }
+
     checks: dict[str, bool] = {
         "GOV-001": _is_present(profile.get("governance", {}), ["conflict_policy", "annual_attestations"]),
         "GOV-002": _is_present(profile.get("governance", {}), ["board_independence", "related_party_review"]),
@@ -51,10 +68,19 @@ def evaluate(profile: dict[str, Any]) -> dict[str, Any]:
     for control in CONTROL_CATALOG:
         status = "met" if checks.get(control["id"], False) else "missing"
         severity = control["severity"]
+        external_meta = baseline_controls.get(control["id"], {})
         severity_totals[severity] += 1
         if status == "missing":
             severity_missing[severity] += 1
-        results.append({**control, "status": status})
+        results.append(
+            {
+                **control,
+                "status": status,
+                "required": bool(external_meta.get("required", True)),
+                "evidence_standard": external_meta.get("evidence_standard"),
+                "source_url": external_meta.get("source_url"),
+            }
+        )
 
     total_controls = len(results)
     met_controls = sum(1 for r in results if r["status"] == "met")
@@ -76,13 +102,14 @@ def evaluate(profile: dict[str, Any]) -> dict[str, Any]:
         "domain_summary": domain_summary,
         "controls": results,
         "priority_gaps": [row for row in results if row["status"] == "missing" and row["severity"] == "high"],
+        "baseline_sources": baseline.get("sources", []),
     }
 
 
-def run(input_file: str, out_file: str) -> dict[str, Any]:
+def run(input_file: str, out_file: str, baseline_file: str | None = None) -> dict[str, Any]:
     source = Path(input_file)
     profile = json.loads(source.read_text(encoding="utf-8"))
-    result = evaluate(profile)
+    result = evaluate(profile, baseline_file=baseline_file)
     out = Path(out_file)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2), encoding="utf-8")

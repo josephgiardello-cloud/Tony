@@ -1,0 +1,38 @@
+{
+  "governance": {
+    "conflict_policy": true,
+    "annual_attestations": true,
+    "board_independence": false,
+    "related_party_review": false
+  },
+  "filings": {
+    "calendar": true,
+    "due_dates": true,
+    "late_escalation": false,
+    "overdue_workflow": false
+  },
+  "fiduciary": {
+    "restricted_funds": false,
+    "restriction_checks": false,
+    "grant_conditions": false,
+    "deliverable_tracking": false
+  },
+  "third_party": {
+    "sanctions_screening": false,
+    "aml_checks": false,
+    "vendor_due_diligence": false,
+    "renewal_checks": false
+  },
+  "policy": {
+    "policy_versions": false,
+    "attestations": false
+  },
+  "incident": {
+    "incident_workflow": false,
+    "remediation_tracking": false
+  },
+  "access": {
+    "rbac": true,
+    "audit_log": true
+  }
+}

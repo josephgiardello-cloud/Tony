@@ -154,6 +154,17 @@ TONY normalizes source data into a common record schema:
 
 Column aliases for common source-specific names such as `tax_prd_yr`, `totrevenue`, and `totfuncexpns` are configured in `tony/default_config.json`.
 
+## External baseline artifacts
+
+The repository includes baseline files sourced from public external references:
+
+- `baselines/external_calibration_baseline.csv`
+: Seed dataset built from IRS bulk datasets (Pub 78 active records and Automatic Revocation list), plus a Charity Navigator public rating fact for contrast.
+- `baselines/external_compliance_controls.json`
+: Control baseline mapped to public sources (IRS filing requirements, IRS TEOS bulk datasets, OFAC sanctions resources, Charity Navigator accountability indicators).
+- `baselines/compliance_profile_template.json`
+: Ready-to-upload compliance profile template for dashboard/CLI audits.
+
 ## Scoring model
 
 The scorer derives these features with pandas:

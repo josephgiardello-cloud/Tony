@@ -1,0 +1,18 @@
+ein,organization_name,external_status,outcome_label,fact_source,fact_type,notes,retrieved_at
+000003154,OAKLEAF FOREST TENANT MANAGEMENT,revoked,1,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,IRS Automatic Revocation List,Revoked tax-exempt status in IRS bulk data,2026-05-16
+000004101,SOUTH LAFOURCHE QUARTERBACK CLUB,revoked,1,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,IRS Automatic Revocation List,Revoked tax-exempt status in IRS bulk data,2026-05-16
+000065837,OHIO STATE GRANGE OF PATRONS OF HUSBANDRY,revoked,1,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,IRS Automatic Revocation List,Revoked tax-exempt status in IRS bulk data,2026-05-16
+000107893,INTERNATIONAL ASSOCIATION OF LIONS,revoked,1,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,IRS Automatic Revocation List,Revoked tax-exempt status in IRS bulk data,2026-05-16
+000262358,KEY CLUB INTERNATIONAL,revoked,1,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,IRS Automatic Revocation List,Revoked tax-exempt status in IRS bulk data,2026-05-16
+000267075,INTERNATIONAL ASSOCIATION OF LIONS,revoked,1,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,IRS Automatic Revocation List,Revoked tax-exempt status in IRS bulk data,2026-05-16
+000344394,PANDAS FOUNDATION INC,revoked,1,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,IRS Automatic Revocation List,Revoked tax-exempt status in IRS bulk data,2026-05-16
+000504434,FAMILY DAY CARE SERVICES INC,revoked,1,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,IRS Automatic Revocation List,Revoked tax-exempt status in IRS bulk data,2026-05-16
+000587764,Iglesia Bethesda Inc.,active,0,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,IRS Pub 78 Active Exempt Organizations,Present in Pub 78 active exempt organization data,2026-05-16
+000635913,Ministerio Apostolico Jesucristo Es El Senor Inc.,active,0,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,IRS Pub 78 Active Exempt Organizations,Present in Pub 78 active exempt organization data,2026-05-16
+000765634,Mercy Chapel International,active,0,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,IRS Pub 78 Active Exempt Organizations,Present in Pub 78 active exempt organization data,2026-05-16
+000841363,Agape House of Prayer,active,0,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,IRS Pub 78 Active Exempt Organizations,Present in Pub 78 active exempt organization data,2026-05-16
+000852649,Bethany Presbyterian Church,active,0,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,IRS Pub 78 Active Exempt Organizations,Present in Pub 78 active exempt organization data,2026-05-16
+000889899,Academic and Behavioral Clinic Inc.,active,0,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,IRS Pub 78 Active Exempt Organizations,Present in Pub 78 active exempt organization data,2026-05-16
+001347537,Restoration of Hope Church Ministries,active,0,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,IRS Pub 78 Active Exempt Organizations,Present in Pub 78 active exempt organization data,2026-05-16
+002030711,Church of Our Lord Jesus Christ of Macedonia,active,0,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,IRS Pub 78 Active Exempt Organizations,Present in Pub 78 active exempt organization data,2026-05-16
+530196605,American Red Cross,four_star_99pct,0,https://www.charitynavigator.org/ein/530196605,Charity Navigator Overall Rating,Charity Navigator shows 99% Four-Star Charity,2026-05-16
