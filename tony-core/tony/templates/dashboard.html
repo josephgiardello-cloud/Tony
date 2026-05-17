@@ -47,26 +47,115 @@
     .eyebrow { text-transform: uppercase; letter-spacing: 0.12em; color: #92400e; font-size: 0.85rem; }
     .metric { font-size: 2rem; color: var(--accent); }
     .charts { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .controls {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      margin-bottom: 1rem;
+    }
+    .controls form {
+      display: grid;
+      gap: 0.65rem;
+    }
+    label {
+      font-size: 0.9rem;
+      color: #7c2d12;
+      font-weight: 600;
+    }
+    input, button {
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      padding: 0.55rem 0.65rem;
+      font-family: inherit;
+      font-size: 0.95rem;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      background: #92400e;
+      color: #fff;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    button:hover { background: #78350f; }
+    .banner {
+      border-radius: 12px;
+      padding: 0.75rem 0.95rem;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+    .banner.ok { background: rgba(16, 185, 129, 0.12); color: #065f46; border: 1px solid rgba(16, 185, 129, 0.35); }
+    .banner.err { background: rgba(220, 38, 38, 0.12); color: #7f1d1d; border: 1px solid rgba(220, 38, 38, 0.35); }
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 0.65rem 0.5rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
   </style>
 </head>
 <body>
   <main class="shell">
+    {% if status_message %}
+    <div class="banner ok">{{ status_message }}</div>
+    {% endif %}
+    {% if error_message %}
+    <div class="banner err">{{ error_message }}</div>
+    {% endif %}
+
+    <section class="controls">
+      <article class="card">
+        <h2>Upload Financial File</h2>
+        <p class="eyebrow">CSV, Excel, or PDF</p>
+        <form method="post" enctype="multipart/form-data">
+          <input type="hidden" name="action" value="upload" />
+
+          <label for="data_file">Data File</label>
+          <input id="data_file" name="data_file" type="file" required />
+
+          <label for="entity_type_upload">Entity Type</label>
+          <input id="entity_type_upload" name="entity_type" value="{{ form_state.entity_type }}" placeholder="nonprofit" />
+
+          <label for="horizon_upload">Horizon (months)</label>
+          <input id="horizon_upload" name="horizon" type="number" min="1" value="{{ form_state.horizon }}" />
+
+          <button type="submit">Ingest + Score</button>
+        </form>
+      </article>
+
+      <article class="card">
+        <h2>Fetch from ProPublica</h2>
+        <p class="eyebrow">External EIN lookup</p>
+        <form method="post">
+          <input type="hidden" name="action" value="propublica" />
+
+          <label for="ein">EIN</label>
+          <input id="ein" name="ein" value="{{ form_state.ein }}" placeholder="530196605" required />
+
+          <label for="years">Years (optional, comma-separated)</label>
+          <input id="years" name="years" value="{{ form_state.years }}" placeholder="2021,2022,2023" />
+
+          <label for="entity_type_pp">Entity Type</label>
+          <input id="entity_type_pp" name="entity_type" value="{{ form_state.entity_type }}" placeholder="nonprofit" />
+
+          <label for="horizon_pp">Horizon (months)</label>
+          <input id="horizon_pp" name="horizon" type="number" min="1" value="{{ form_state.horizon }}" />
+
+          <button type="submit">Fetch + Score</button>
+        </form>
+      </article>
+    </section>
+
     <section class="hero">
       <article class="card">
         <p class="eyebrow">Descriptor</p>
-        <h1>{{ summary.descriptor }}</h1>
-        <p>Source: {{ metadata.source }}</p>
+        <h1>{{ summary.descriptor or "No Data" }}</h1>
+        <p>Source: {{ metadata.source or "No source loaded" }}</p>
       </article>
       <article class="card">
         <p class="eyebrow">Continuity</p>
-        <p class="metric">{{ summary.continuity_months }}</p>
+        <p class="metric">{{ summary.continuity_months if summary.continuity_months is not none else "-" }}</p>
         <p>Months of unrestricted net assets available.</p>
       </article>
       <article class="card">
         <p class="eyebrow">Model Risk</p>
-        <p class="metric">{{ summary.risk_probability }}</p>
+        <p class="metric">{{ summary.risk_probability if summary.risk_probability is not none else "-" }}</p>
         <p>Probability from logistic regression over derived financial features.</p>
       </article>
     </section>
