@@ -10,6 +10,7 @@ TONY is a single Python package for nonprofit and grant workflows: ingest filing
 - Derive financial health features and fit a logistic regression model for risk probability.
 - Render Markdown, HTML, or JSON reports.
 - Serve a Flask + Plotly dashboard for interactive review.
+- Calibrate model probabilities against external benchmark outcomes.
 - Override scoring weights, thresholds, and source settings with JSON config files.
 
 ## Package layout
@@ -90,6 +91,12 @@ Launch the dashboard:
 
 ```bash
 tony dashboard --input scored.json --host 127.0.0.1 --port 8000
+```
+
+Calibrate with external outcomes (CSV requires `risk_probability` and `outcome` columns):
+
+```bash
+tony calibrate --input benchmark_labels.csv --bins 10 --out calibration.json
 ```
 
 Print the bundled config:
@@ -175,7 +182,9 @@ Test coverage includes:
 - Ingest normalization from CSV/Excel fixtures.
 - Error handling for missing EIN and upstream ProPublica HTTP errors.
 - Scoring for normal inputs, sparse inputs, and empty-record rejection.
+- Probability calibration quality against external labels.
 - CLI behavior (round-trip ingest/score plus env-driven defaults).
+- Dashboard interactivity for upload, ProPublica fetch, and calibration upload.
 - Real-data validation of `../ME_grants.csv` when present.
 
 The suite uses pytest fixtures, `tmp_path`, and monkeypatching. No test requires a live network call.

@@ -4,10 +4,11 @@ import tempfile
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 
-from . import ingest, score
+from . import calibration, ingest, score
 from .utils import parse_years
 from .utils import read_json
 
@@ -41,6 +42,43 @@ def _build_charts(payload: dict) -> dict[str, str]:
     }
 
 
+def _build_calibration_chart(calibration_result: dict | None) -> str:
+    if not calibration_result:
+        return "{}"
+
+    curve = calibration_result.get("curve", [])
+    if not curve:
+        return "{}"
+
+    frame = pd.DataFrame(curve)
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=frame["mean_pred"],
+            y=frame["observed_rate"],
+            mode="markers+lines",
+            name="Observed",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=[0, 1],
+            y=[0, 1],
+            mode="lines",
+            name="Perfect calibration",
+            line={"dash": "dash"},
+        )
+    )
+    fig.update_layout(
+        title="Calibration curve",
+        xaxis_title="Predicted probability",
+        yaxis_title="Observed outcome rate",
+        template="plotly_white",
+        margin=dict(l=20, r=20, t=60, b=20),
+    )
+    return fig.to_json()
+
+
 def _empty_payload() -> dict:
     return {
         "summary": {},
@@ -67,6 +105,7 @@ def create_app(data_path: str) -> Flask:
         payload = _load_payload(data_path)
         error_message = ""
         status_message = ""
+        calibration_result: dict | None = None
         form_state = {
             "entity_type": "nonprofit",
             "horizon": "12",
@@ -106,21 +145,35 @@ def create_app(data_path: str) -> Flask:
                         years_raw = (form_state["years"] or "").strip()
                         years = parse_years(years_raw) if years_raw else []
                         ingest.run("propublica", ein, years, normalized_path)
+                    elif action == "calibrate":
+                        uploaded = request.files.get("calibration_file")
+                        if not uploaded or not uploaded.filename:
+                            raise ValueError("Select a calibration CSV with risk_probability and outcome columns.")
+
+                        filename = secure_filename(uploaded.filename) or "calibration.csv"
+                        source_path = os.path.join(work_dir, filename)
+                        uploaded.save(source_path)
+                        calibration_result = calibration.run(source_path, os.path.join(work_dir, "calibration.json"))
+                        status_message = "Calibration completed with external benchmark data."
                     else:
                         raise ValueError("Unsupported dashboard action.")
 
-                    payload = score.run(normalized_path, entity_type, horizon, scored_path)
-                    status_message = "Dashboard updated with fresh scoring output."
+                    if action in {"upload", "propublica"}:
+                        payload = score.run(normalized_path, entity_type, horizon, scored_path)
+                        status_message = "Dashboard updated with fresh scoring output."
             except Exception as exc:
                 error_message = str(exc)
 
         charts = _build_charts(payload)
+        calibration_chart = _build_calibration_chart(calibration_result)
         return render_template(
             "dashboard.html",
             summary=payload.get("summary", {}),
             metadata=payload.get("metadata", {}),
             history=json.dumps(payload.get("history", [])),
             charts=charts,
+            calibration_result=calibration_result,
+            calibration_chart=calibration_chart,
             error_message=error_message,
             status_message=status_message,
             form_state=form_state,

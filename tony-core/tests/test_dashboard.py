@@ -97,3 +97,57 @@ def test_dashboard_post_propublica_requires_ein(normalized_payload: Path, tmp_pa
 
     assert response.status_code == 200
     assert b"EIN is required for ProPublica lookup." in response.data
+
+
+def test_dashboard_post_calibration_updates_metrics(
+    normalized_payload: Path,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    scored_path = _scored_fixture(normalized_payload, tmp_path)
+    app = create_app(str(scored_path))
+
+    def fake_calibration_run(input_file, out_file, bins=10):  # noqa: ANN001, ANN201
+        payload = {
+            "metrics": {
+                "rows": 4,
+                "brier_before": 0.2123,
+                "brier_after": 0.1876,
+                "auc_before": 0.71,
+                "auc_after": 0.73,
+            },
+            "curve": [
+                {
+                    "mean_pred": 0.2,
+                    "observed_rate": 0.25,
+                    "calibrated_mean": 0.24,
+                    "n": 2,
+                },
+                {
+                    "mean_pred": 0.7,
+                    "observed_rate": 0.75,
+                    "calibrated_mean": 0.74,
+                    "n": 2,
+                },
+            ],
+            "samples": [],
+        }
+        Path(out_file).write_text(json.dumps(payload), encoding="utf-8")
+        return payload
+
+    monkeypatch.setattr("tony.dashboard.calibration.run", fake_calibration_run)
+
+    with app.test_client() as client:
+        response = client.post(
+            "/",
+            data={
+                "action": "calibrate",
+                "calibration_file": (io.BytesIO(b"risk_probability,outcome\n0.2,0\n0.8,1\n"), "bench.csv"),
+            },
+            content_type="multipart/form-data",
+        )
+
+    assert response.status_code == 200
+    assert b"Calibration completed with external benchmark data." in response.data
+    assert b"Calibration Results" in response.data
+    assert b"0.1876" in response.data

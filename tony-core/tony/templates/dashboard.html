@@ -88,6 +88,18 @@
     .banner.err { background: rgba(220, 38, 38, 0.12); color: #7f1d1d; border: 1px solid rgba(220, 38, 38, 0.35); }
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 0.65rem 0.5rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    .mini-grid {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    .mini {
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 0.75rem;
+    }
+    .mini p { margin: 0.1rem 0; }
   </style>
 </head>
 <body>
@@ -140,6 +152,22 @@
           <button type="submit">Fetch + Score</button>
         </form>
       </article>
+
+      <article class="card">
+        <h2>Calibrate with External Labels</h2>
+        <p class="eyebrow">Upload benchmark CSV</p>
+        <form method="post" enctype="multipart/form-data">
+          <input type="hidden" name="action" value="calibrate" />
+
+          <label for="calibration_file">Calibration File</label>
+          <input id="calibration_file" name="calibration_file" type="file" required />
+          <p style="margin:0; color:#7c2d12; font-size:0.85rem;">
+            Required columns: risk_probability, outcome (0/1)
+          </p>
+
+          <button type="submit">Run Calibration</button>
+        </form>
+      </article>
     </section>
 
     <section class="hero">
@@ -183,6 +211,35 @@
         <tbody id="history-body"></tbody>
       </table>
     </section>
+
+    {% if calibration_result %}
+    <section class="card" style="margin-top: 1rem;">
+      <h2>Calibration Results</h2>
+      <div class="mini-grid">
+        <div class="mini">
+          <p class="eyebrow">Rows</p>
+          <p class="metric" style="font-size:1.4rem;">{{ calibration_result.metrics.rows }}</p>
+        </div>
+        <div class="mini">
+          <p class="eyebrow">Brier Before</p>
+          <p class="metric" style="font-size:1.4rem;">{{ calibration_result.metrics.brier_before }}</p>
+        </div>
+        <div class="mini">
+          <p class="eyebrow">Brier After</p>
+          <p class="metric" style="font-size:1.4rem;">{{ calibration_result.metrics.brier_after }}</p>
+        </div>
+        <div class="mini">
+          <p class="eyebrow">AUC Before</p>
+          <p class="metric" style="font-size:1.4rem;">{{ calibration_result.metrics.auc_before if calibration_result.metrics.auc_before is not none else "n/a" }}</p>
+        </div>
+        <div class="mini">
+          <p class="eyebrow">AUC After</p>
+          <p class="metric" style="font-size:1.4rem;">{{ calibration_result.metrics.auc_after if calibration_result.metrics.auc_after is not none else "n/a" }}</p>
+        </div>
+      </div>
+      <div id="calibration" style="margin-top:1rem;"></div>
+    </section>
+    {% endif %}
   </main>
 
   <script>
@@ -191,6 +248,14 @@
     Plotly.newPlot("trend", JSON.parse(charts.trend).data, JSON.parse(charts.trend).layout, {responsive: true});
     Plotly.newPlot("mix", JSON.parse(charts.mix).data, JSON.parse(charts.mix).layout, {responsive: true});
     Plotly.newPlot("risk", JSON.parse(charts.risk).data, JSON.parse(charts.risk).layout, {responsive: true});
+    const calibrationChart = {{ calibration_chart|tojson }};
+    if (calibrationChart && calibrationChart !== "{}") {
+      const parsedCalibration = JSON.parse(calibrationChart);
+      const target = document.getElementById("calibration");
+      if (target) {
+        Plotly.newPlot("calibration", parsedCalibration.data, parsedCalibration.layout, {responsive: true});
+      }
+    }
 
     const tbody = document.getElementById("history-body");
     history.forEach((row) => {

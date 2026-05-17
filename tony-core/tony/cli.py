@@ -1,7 +1,7 @@
 ﻿import argparse
 import json
 import logging
-from . import ingest, report, score
+from . import calibration, ingest, report, score
 from .config import DEFAULT_CONFIG
 from .dashboard import main as dashboard_main
 from .utils import parse_years
@@ -51,6 +51,11 @@ def main() -> None:
     p_dashboard.add_argument("--host", default="127.0.0.1")
     p_dashboard.add_argument("--port", type=int, default=8000)
 
+    p_calibrate = subparsers.add_parser("calibrate")
+    p_calibrate.add_argument("--input", required=True, help="CSV with risk_probability and outcome columns")
+    p_calibrate.add_argument("--bins", type=int, default=10)
+    p_calibrate.add_argument("--out", required=True)
+
     subparsers.add_parser("print-config")
 
     args = parser.parse_args()
@@ -68,6 +73,8 @@ def main() -> None:
         report.run(args.input, args.format, args.out)
     elif args.command == "dashboard":
         dashboard_main(args.input, args.host, args.port)
+    elif args.command == "calibrate":
+        calibration.run(args.input, args.out, bins=args.bins)
     elif args.command == "print-config":
         print(json.dumps(DEFAULT_CONFIG, indent=2))
     else:

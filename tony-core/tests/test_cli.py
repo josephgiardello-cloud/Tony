@@ -109,3 +109,32 @@ def test_cli_score_defaults_entity_type(monkeypatch, tmp_path: Path) -> None:
 
     cli.main()
     assert captured["entity_type"] == "nonprofit"
+
+
+def test_cli_calibrate_dispatches(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_calibration_run(input_file, out_file, bins=10):
+        captured["input_file"] = input_file
+        captured["out_file"] = out_file
+        captured["bins"] = bins
+        return {"metrics": {"rows": 1}}
+
+    monkeypatch.setattr(cli.calibration, "run", _fake_calibration_run)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tony",
+            "calibrate",
+            "--input",
+            str(tmp_path / "bench.csv"),
+            "--bins",
+            "7",
+            "--out",
+            str(tmp_path / "calibrated.json"),
+        ],
+    )
+
+    cli.main()
+    assert captured["bins"] == 7
