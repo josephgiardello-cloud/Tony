@@ -1,7 +1,7 @@
 ﻿import argparse
 import json
 import logging
-from . import calibration, ingest, report, score
+from . import calibration, compliance, ingest, report, score
 from .config import DEFAULT_CONFIG
 from .dashboard import main as dashboard_main
 from .utils import parse_years
@@ -56,6 +56,10 @@ def main() -> None:
     p_calibrate.add_argument("--bins", type=int, default=10)
     p_calibrate.add_argument("--out", required=True)
 
+    p_compliance = subparsers.add_parser("compliance-audit")
+    p_compliance.add_argument("--input", required=True, help="JSON profile for governance/compliance controls")
+    p_compliance.add_argument("--out", required=True)
+
     subparsers.add_parser("print-config")
 
     args = parser.parse_args()
@@ -75,6 +79,8 @@ def main() -> None:
         dashboard_main(args.input, args.host, args.port)
     elif args.command == "calibrate":
         calibration.run(args.input, args.out, bins=args.bins)
+    elif args.command == "compliance-audit":
+        compliance.run(args.input, args.out)
     elif args.command == "print-config":
         print(json.dumps(DEFAULT_CONFIG, indent=2))
     else:

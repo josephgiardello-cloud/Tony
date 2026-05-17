@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 
-from . import calibration, ingest, score
+from . import calibration, compliance, ingest, score
 from .utils import parse_years
 from .utils import read_json
 
@@ -79,6 +79,34 @@ def _build_calibration_chart(calibration_result: dict | None) -> str:
     return fig.to_json()
 
 
+def _build_compliance_chart(compliance_result: dict | None) -> str:
+    if not compliance_result:
+        return "{}"
+
+    domain_summary = compliance_result.get("domain_summary", {})
+    if not domain_summary:
+        return "{}"
+
+    frame = pd.DataFrame(
+        [
+            {"domain": domain, "met": values.get("met", 0), "missing": values.get("missing", 0)}
+            for domain, values in domain_summary.items()
+        ]
+    )
+    fig = go.Figure()
+    fig.add_trace(go.Bar(name="Met", x=frame["domain"], y=frame["met"]))
+    fig.add_trace(go.Bar(name="Missing", x=frame["domain"], y=frame["missing"]))
+    fig.update_layout(
+        barmode="group",
+        title="Compliance controls by domain",
+        xaxis_title="Domain",
+        yaxis_title="Control count",
+        template="plotly_white",
+        margin=dict(l=20, r=20, t=60, b=20),
+    )
+    return fig.to_json()
+
+
 def _empty_payload() -> dict:
     return {
         "summary": {},
@@ -106,6 +134,7 @@ def create_app(data_path: str) -> Flask:
         error_message = ""
         status_message = ""
         calibration_result: dict | None = None
+        compliance_result: dict | None = None
         form_state = {
             "entity_type": "nonprofit",
             "horizon": "12",
@@ -155,6 +184,16 @@ def create_app(data_path: str) -> Flask:
                         uploaded.save(source_path)
                         calibration_result = calibration.run(source_path, os.path.join(work_dir, "calibration.json"))
                         status_message = "Calibration completed with external benchmark data."
+                    elif action == "compliance":
+                        uploaded = request.files.get("compliance_file")
+                        if not uploaded or not uploaded.filename:
+                            raise ValueError("Select a compliance profile JSON file.")
+
+                        filename = secure_filename(uploaded.filename) or "compliance_profile.json"
+                        source_path = os.path.join(work_dir, filename)
+                        uploaded.save(source_path)
+                        compliance_result = compliance.run(source_path, os.path.join(work_dir, "compliance_report.json"))
+                        status_message = "Compliance gap assessment completed."
                     else:
                         raise ValueError("Unsupported dashboard action.")
 
@@ -166,6 +205,7 @@ def create_app(data_path: str) -> Flask:
 
         charts = _build_charts(payload)
         calibration_chart = _build_calibration_chart(calibration_result)
+        compliance_chart = _build_compliance_chart(compliance_result)
         return render_template(
             "dashboard.html",
             summary=payload.get("summary", {}),
@@ -174,6 +214,8 @@ def create_app(data_path: str) -> Flask:
             charts=charts,
             calibration_result=calibration_result,
             calibration_chart=calibration_chart,
+            compliance_result=compliance_result,
+            compliance_chart=compliance_chart,
             error_message=error_message,
             status_message=status_message,
             form_state=form_state,

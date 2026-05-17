@@ -151,3 +151,51 @@ def test_dashboard_post_calibration_updates_metrics(
     assert b"Calibration completed with external benchmark data." in response.data
     assert b"Calibration Results" in response.data
     assert b"0.1876" in response.data
+
+
+def test_dashboard_post_compliance_updates_results(
+    normalized_payload: Path,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    scored_path = _scored_fixture(normalized_payload, tmp_path)
+    app = create_app(str(scored_path))
+
+    def fake_compliance_run(input_file, out_file):  # noqa: ANN001, ANN201
+        payload = {
+            "overall_score": 63.6,
+            "controls_total": 11,
+            "controls_met": 7,
+            "severity_missing": {"high": 2, "medium": 2, "low": 0},
+            "domain_summary": {
+                "governance": {"met": 1, "missing": 1},
+                "fiduciary": {"met": 0, "missing": 2},
+            },
+            "priority_gaps": [
+                {
+                    "id": "FID-001",
+                    "domain": "fiduciary",
+                    "severity": "high",
+                    "requirement": "Restricted funds tracking and spend controls",
+                }
+            ],
+        }
+        Path(out_file).write_text(json.dumps(payload), encoding="utf-8")
+        return payload
+
+    monkeypatch.setattr("tony.dashboard.compliance.run", fake_compliance_run)
+
+    with app.test_client() as client:
+        response = client.post(
+            "/",
+            data={
+                "action": "compliance",
+                "compliance_file": (io.BytesIO(b"{}"), "profile.json"),
+            },
+            content_type="multipart/form-data",
+        )
+
+    assert response.status_code == 200
+    assert b"Compliance gap assessment completed." in response.data
+    assert b"Compliance Gap Results" in response.data
+    assert b"FID-001" in response.data

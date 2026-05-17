@@ -168,6 +168,22 @@
           <button type="submit">Run Calibration</button>
         </form>
       </article>
+
+      <article class="card">
+        <h2>Compliance Gap Audit</h2>
+        <p class="eyebrow">Governance / fiduciary / filing controls</p>
+        <form method="post" enctype="multipart/form-data">
+          <input type="hidden" name="action" value="compliance" />
+
+          <label for="compliance_file">Compliance Profile JSON</label>
+          <input id="compliance_file" name="compliance_file" type="file" required />
+          <p style="margin:0; color:#7c2d12; font-size:0.85rem;">
+            Domains: governance, filings, fiduciary, third_party, policy, incident, access
+          </p>
+
+          <button type="submit">Run Compliance Audit</button>
+        </form>
+      </article>
     </section>
 
     <section class="hero">
@@ -240,6 +256,55 @@
       <div id="calibration" style="margin-top:1rem;"></div>
     </section>
     {% endif %}
+
+    {% if compliance_result %}
+    <section class="card" style="margin-top: 1rem;">
+      <h2>Compliance Gap Results</h2>
+      <div class="mini-grid">
+        <div class="mini">
+          <p class="eyebrow">Overall Score</p>
+          <p class="metric" style="font-size:1.4rem;">{{ compliance_result.overall_score }}%</p>
+        </div>
+        <div class="mini">
+          <p class="eyebrow">Controls Met</p>
+          <p class="metric" style="font-size:1.4rem;">{{ compliance_result.controls_met }} / {{ compliance_result.controls_total }}</p>
+        </div>
+        <div class="mini">
+          <p class="eyebrow">High Missing</p>
+          <p class="metric" style="font-size:1.4rem;">{{ compliance_result.severity_missing.high }}</p>
+        </div>
+        <div class="mini">
+          <p class="eyebrow">Medium Missing</p>
+          <p class="metric" style="font-size:1.4rem;">{{ compliance_result.severity_missing.medium }}</p>
+        </div>
+      </div>
+      <div id="compliance" style="margin-top:1rem;"></div>
+
+      {% if compliance_result.priority_gaps %}
+      <h3 style="margin-top:1rem;">Priority Gaps</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Control</th>
+            <th>Domain</th>
+            <th>Severity</th>
+            <th>Requirement</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for gap in compliance_result.priority_gaps %}
+          <tr>
+            <td>{{ gap.id }}</td>
+            <td>{{ gap.domain }}</td>
+            <td>{{ gap.severity }}</td>
+            <td>{{ gap.requirement }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </section>
+    {% endif %}
   </main>
 
   <script>
@@ -254,6 +319,15 @@
       const target = document.getElementById("calibration");
       if (target) {
         Plotly.newPlot("calibration", parsedCalibration.data, parsedCalibration.layout, {responsive: true});
+      }
+    }
+
+    const complianceChart = {{ compliance_chart|tojson }};
+    if (complianceChart && complianceChart !== "{}") {
+      const parsedCompliance = JSON.parse(complianceChart);
+      const target = document.getElementById("compliance");
+      if (target) {
+        Plotly.newPlot("compliance", parsedCompliance.data, parsedCompliance.layout, {responsive: true});
       }
     }
 

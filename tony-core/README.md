@@ -11,6 +11,7 @@ TONY is a single Python package for nonprofit and grant workflows: ingest filing
 - Render Markdown, HTML, or JSON reports.
 - Serve a Flask + Plotly dashboard for interactive review.
 - Calibrate model probabilities against external benchmark outcomes.
+- Run governance/fiduciary/compliance gap audits from structured control profiles.
 - Override scoring weights, thresholds, and source settings with JSON config files.
 
 ## Package layout
@@ -97,6 +98,12 @@ Calibrate with external outcomes (CSV requires `risk_probability` and `outcome` 
 
 ```bash
 tony calibrate --input benchmark_labels.csv --bins 10 --out calibration.json
+```
+
+Run a compliance gap audit (JSON profile input):
+
+```bash
+tony compliance-audit --input compliance_profile.json --out compliance_report.json
 ```
 
 Print the bundled config:
@@ -200,6 +207,7 @@ Test coverage includes:
 - Probability calibration quality against external labels.
 - CLI behavior (round-trip ingest/score plus env-driven defaults).
 - Dashboard interactivity for upload, ProPublica fetch, and calibration upload.
+- Dashboard compliance gap review (governance, filings, fiduciary, third-party, policy, incident, access).
 - Real-data validation of `../ME_grants.csv` when present.
 
 The suite uses pytest fixtures, `tmp_path`, and monkeypatching. No test requires a live network call.

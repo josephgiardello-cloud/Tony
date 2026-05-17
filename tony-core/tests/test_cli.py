@@ -138,3 +138,29 @@ def test_cli_calibrate_dispatches(monkeypatch, tmp_path: Path) -> None:
 
     cli.main()
     assert captured["bins"] == 7
+
+
+def test_cli_compliance_dispatches(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_compliance_run(input_file, out_file):
+        captured["input_file"] = input_file
+        captured["out_file"] = out_file
+        return {"overall_score": 50.0}
+
+    monkeypatch.setattr(cli.compliance, "run", _fake_compliance_run)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tony",
+            "compliance-audit",
+            "--input",
+            str(tmp_path / "profile.json"),
+            "--out",
+            str(tmp_path / "report.json"),
+        ],
+    )
+
+    cli.main()
+    assert captured["input_file"]
