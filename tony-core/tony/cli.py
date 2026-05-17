@@ -29,16 +29,16 @@ def main() -> None:
 
     p_ingest = subparsers.add_parser("ingest")
     p_ingest.add_argument("--source", required=True, help="Path to CSV/Excel/PDF or the literal 'propublica'")
-    p_ingest.add_argument("--ein")
+    p_ingest.add_argument("--ein", help="Required for source=propublica unless PROPUBLICA_EIN or TONY_EIN is set")
     p_ingest.add_argument("--years", default="", type=parse_years)
-    p_ingest.add_argument("--config")
+    p_ingest.add_argument("--config", help="Path to config JSON (falls back to TONY_CONFIG env var)")
     p_ingest.add_argument("--out", required=True)
 
     p_score = subparsers.add_parser("score")
     p_score.add_argument("--input", required=True)
-    p_score.add_argument("--entity-type", required=True)
+    p_score.add_argument("--entity-type", default="nonprofit")
     p_score.add_argument("--horizon", type=int, default=10)
-    p_score.add_argument("--config")
+    p_score.add_argument("--config", help="Path to config JSON (falls back to TONY_CONFIG env var)")
     p_score.add_argument("--out", required=True)
 
     p_report = subparsers.add_parser("report")
@@ -56,9 +56,14 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "ingest":
-        ingest.run(args.source, args.ein, args.years, args.out, args.config)
+        resolved_config = args.config or os.getenv("TONY_CONFIG")
+        resolved_ein = args.ein
+        if args.source.strip().lower() == "propublica" and not resolved_ein:
+            resolved_ein = os.getenv("PROPUBLICA_EIN") or os.getenv("TONY_EIN")
+        ingest.run(args.source, resolved_ein, args.years, args.out, resolved_config)
     elif args.command == "score":
-        score.run(args.input, args.entity_type, args.horizon, args.out, args.config)
+        resolved_config = args.config or os.getenv("TONY_CONFIG")
+        score.run(args.input, args.entity_type, args.horizon, args.out, resolved_config)
     elif args.command == "report":
         report.run(args.input, args.format, args.out)
     elif args.command == "dashboard":

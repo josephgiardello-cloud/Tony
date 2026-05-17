@@ -36,17 +36,23 @@ tony-core/
 
 ## Installation
 
-```powershell
-Set-Location C:\TONY2\tony-core
+```bash
+cd tony-core
 python -m venv .venv
-.venv\Scripts\Activate.ps1
+
+# Linux/macOS
+source .venv/bin/activate
+
+# Windows PowerShell
+# .venv\Scripts\Activate.ps1
+
 python -m pip install -r requirements.txt
 python -m pip install -e .
 ```
 
 Optional PDF table parsing:
 
-```powershell
+```bash
 python -m pip install -e .[pdf]
 ```
 
@@ -54,37 +60,41 @@ python -m pip install -e .[pdf]
 
 Normalize a local spreadsheet:
 
-```powershell
-tony ingest --source ..\ME_grants.csv --out normalized.json
+```bash
+tony ingest --source ../ME_grants.csv --out normalized.json
 ```
 
 Fetch filings from ProPublica:
 
-```powershell
+```bash
 tony ingest --source propublica --ein 530196605 --years 2021,2022,2023 --out propublica.json
 ```
 
+If `--ein` is omitted for `source=propublica`, the CLI uses `PROPUBLICA_EIN` or `TONY_EIN` when set.
+
 Score the normalized ledger:
 
-```powershell
+```bash
 tony score --input normalized.json --entity-type nonprofit --horizon 12 --out scored.json
 ```
 
+`--entity-type` defaults to `nonprofit` when omitted.
+
 Generate an HTML report:
 
-```powershell
+```bash
 tony report --input scored.json --format html --out report.html
 ```
 
 Launch the dashboard:
 
-```powershell
+```bash
 tony dashboard --input scored.json --host 127.0.0.1 --port 8000
 ```
 
 Print the bundled config:
 
-```powershell
+```bash
 tony print-config
 ```
 
@@ -110,9 +120,11 @@ The default configuration is in `tony/default_config.json`. You can override wei
 
 Use it during ingestion or scoring:
 
-```powershell
+```bash
 tony score --input normalized.json --entity-type nonprofit --config custom-config.json --out scored.json
 ```
+
+You can also set `TONY_CONFIG=/path/to/config.json` and skip `--config`.
 
 ## Data model
 
@@ -154,8 +166,16 @@ It then trains a scikit-learn logistic regression model on the observed filing h
 
 ## Testing
 
-```powershell
+```bash
 python -m pytest tests -q
 ```
 
-The suite uses pytest fixtures, `tmp_path`, and monkeypatching. There are no hard-coded local paths or live network calls in the tests.
+Test coverage includes:
+
+- Ingest normalization from CSV/Excel fixtures.
+- Error handling for missing EIN and upstream ProPublica HTTP errors.
+- Scoring for normal inputs, sparse inputs, and empty-record rejection.
+- CLI behavior (round-trip ingest/score plus env-driven defaults).
+- Real-data validation of `../ME_grants.csv` when present.
+
+The suite uses pytest fixtures, `tmp_path`, and monkeypatching. No test requires a live network call.

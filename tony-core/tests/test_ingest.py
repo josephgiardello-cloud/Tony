@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import requests
 
 from tony.ingest import run as ingest_run
 from tony.score import score_risk_adjustable
@@ -100,4 +101,29 @@ def test_me_grants_roundtrip_to_tmp_csv(tmp_path: Path) -> None:
     copy = pd.read_csv(dest)
 
     pd.testing.assert_frame_equal(original, copy)
+
+
+def test_propublica_ingest_requires_ein(tmp_path: Path) -> None:
+    out_file = tmp_path / "missing_ein.json"
+    with pytest.raises(ValueError, match="EIN is required"):
+        ingest_run("propublica", None, [], str(out_file))
+
+
+def test_propublica_ingest_surfaces_http_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    out_file = tmp_path / "http_error.json"
+
+    class _FakeResponse:
+        def raise_for_status(self) -> None:
+            raise requests.HTTPError("503 Service Unavailable")
+
+        def json(self) -> dict:
+            return {}
+
+    def _fake_get(*args, **kwargs):  # noqa: ANN002, ANN003
+        return _FakeResponse()
+
+    monkeypatch.setattr("tony.ingest.requests.get", _fake_get)
+
+    with pytest.raises(requests.HTTPError, match="503"):
+        ingest_run("propublica", "530196605", [], str(out_file))
 

@@ -32,6 +32,9 @@ def _descriptor(continuity_months: float | None, risk_probability: float, thresh
 
 
 def _feature_frame(records: list[dict[str, Any]]) -> pd.DataFrame:
+    if not records:
+        raise ValueError("No records available for scoring.")
+
     frame = pd.DataFrame(records).sort_values("year").reset_index(drop=True)
     if frame.empty:
         raise ValueError("No records available for scoring.")

@@ -1,5 +1,0 @@
-# Created by venv; see https://docs.python.org/3/library/venv.html
-*
-!.gitignore
-!grant_management.py
-!test_grant_management.py

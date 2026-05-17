@@ -6,10 +6,7 @@ env/
 */venv/
 */env/
 tony-env/
-!tony-env/
-tony-env/*
-!tony-env/grant_management.py
-!tony-env/test_grant_management.py
+tony/
 
 # Python cache/build artifacts
 __pycache__/
