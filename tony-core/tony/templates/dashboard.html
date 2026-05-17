@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TONY Dashboard</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --paper: #f7f4ea;
+      --ink: #1f2937;
+      --accent: #d97706;
+      --card: rgba(255, 255, 255, 0.88);
+    }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(217, 119, 6, 0.22), transparent 30%),
+        linear-gradient(180deg, #fefae0, var(--paper));
+      color: var(--ink);
+    }
+
+    .shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1rem 3rem;
+    }
+
+    .hero {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 18px;
+      padding: 1.25rem;
+      box-shadow: 0 14px 40px rgba(148, 163, 184, 0.18);
+      backdrop-filter: blur(12px);
+    }
+
+    h1, h2 { margin: 0 0 0.5rem; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.12em; color: #92400e; font-size: 0.85rem; }
+    .metric { font-size: 2rem; color: var(--accent); }
+    .charts { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.65rem 0.5rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <article class="card">
+        <p class="eyebrow">Descriptor</p>
+        <h1>{{ summary.descriptor }}</h1>
+        <p>Source: {{ metadata.source }}</p>
+      </article>
+      <article class="card">
+        <p class="eyebrow">Continuity</p>
+        <p class="metric">{{ summary.continuity_months }}</p>
+        <p>Months of unrestricted net assets available.</p>
+      </article>
+      <article class="card">
+        <p class="eyebrow">Model Risk</p>
+        <p class="metric">{{ summary.risk_probability }}</p>
+        <p>Probability from logistic regression over derived financial features.</p>
+      </article>
+    </section>
+
+    <section class="charts">
+      <article class="card"><div id="trend"></div></article>
+      <article class="card"><div id="mix"></div></article>
+      <article class="card"><div id="risk"></div></article>
+    </section>
+
+    <section class="card" style="margin-top: 1rem; overflow-x: auto;">
+      <h2>Feature History</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Year</th>
+            <th>Continuity</th>
+            <th>Operating Margin</th>
+            <th>Program Expense Ratio</th>
+            <th>Liabilities / Assets</th>
+            <th>Volatility</th>
+            <th>Risk</th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    const charts = {{ charts|tojson }};
+    const history = JSON.parse({{ history|tojson }});
+    Plotly.newPlot("trend", JSON.parse(charts.trend).data, JSON.parse(charts.trend).layout, {responsive: true});
+    Plotly.newPlot("mix", JSON.parse(charts.mix).data, JSON.parse(charts.mix).layout, {responsive: true});
+    Plotly.newPlot("risk", JSON.parse(charts.risk).data, JSON.parse(charts.risk).layout, {responsive: true});
+
+    const tbody = document.getElementById("history-body");
+    history.forEach((row) => {
+      const tr = document.createElement("tr");
+      [
+        row.year,
+        row.continuity_months,
+        row.operating_margin,
+        row.program_expense_ratio,
+        row.liabilities_to_assets,
+        row.revenue_volatility,
+        row.risk_probability,
+      ].forEach((value) => {
+        const td = document.createElement("td");
+        td.textContent = value ?? "";
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  </script>
+</body>
+</html>

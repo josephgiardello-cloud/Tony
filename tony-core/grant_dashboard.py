@@ -1,30 +1,12 @@
-from flask import Flask, render_template, jsonify
-from flask_socketio import SocketIO, emit
-import os
+import argparse
 
-app = Flask(__name__)
-socketio = SocketIO(app)
+from tony.dashboard import main
 
-notifications = []
 
-@app.route('/')
-def index():
-    return render_template('dashboard.html')
-
-@app.route('/notifications')
-def get_notifications():
-    return jsonify(notifications)
-
-@socketio.on('connect')
-def handle_connect():
-    emit('notification', {'data': 'Connected to real-time dashboard'})
-
-# Example function to broadcast a notification
-@app.route('/notify/<message>')
-def notify(message):
-    notifications.append({'message': message})
-    socketio.emit('notification', {'data': message})
-    return 'Notification sent'
-
-if __name__ == '__main__':
-    socketio.run(app, debug=True)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Launch the TONY dashboard")
+    parser.add_argument("--input", required=True, help="Path to a scored JSON file")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    options = parser.parse_args()
+    main(options.input, options.host, options.port)

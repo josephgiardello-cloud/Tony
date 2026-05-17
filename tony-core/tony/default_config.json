@@ -1,0 +1,66 @@
+{
+  "weights": {
+    "continuity_months": 0.35,
+    "operating_margin": 0.2,
+    "program_expense_ratio": 0.2,
+    "liabilities_to_assets": 0.15,
+    "revenue_volatility": 0.1
+  },
+  "thresholds": {
+    "continuity_low": 6.0,
+    "continuity_moderate": 3.0,
+    "risk_probability_high": 0.66,
+    "risk_probability_moderate": 0.4
+  },
+  "sources": {
+    "propublica": {
+      "base_url": "https://projects.propublica.org/nonprofits/api/v2"
+    }
+  },
+  "model": {
+    "random_state": 42,
+    "reference_profiles": [
+      {
+        "continuity_months": 1.5,
+        "operating_margin": -0.12,
+        "program_expense_ratio": 0.45,
+        "liabilities_to_assets": 1.05,
+        "revenue_volatility": 0.4,
+        "risk_label": 1
+      },
+      {
+        "continuity_months": 2.5,
+        "operating_margin": -0.03,
+        "program_expense_ratio": 0.58,
+        "liabilities_to_assets": 0.88,
+        "revenue_volatility": 0.3,
+        "risk_label": 1
+      },
+      {
+        "continuity_months": 5.0,
+        "operating_margin": 0.01,
+        "program_expense_ratio": 0.7,
+        "liabilities_to_assets": 0.62,
+        "revenue_volatility": 0.18,
+        "risk_label": 0
+      },
+      {
+        "continuity_months": 9.0,
+        "operating_margin": 0.08,
+        "program_expense_ratio": 0.82,
+        "liabilities_to_assets": 0.35,
+        "revenue_volatility": 0.08,
+        "risk_label": 0
+      }
+    ]
+  },
+  "column_aliases": {
+    "year": ["year", "tax_year", "fiscal_year", "tax_prd_yr"],
+    "revenue": ["revenue", "total_revenue", "totrevenue", "amount"],
+    "expenses": ["expenses", "total_expenses", "totfuncexpns"],
+    "assets": ["assets", "total_assets", "totassetsend"],
+    "liabilities": ["liabilities", "total_liabilities", "totliabend"],
+    "net_assets": ["net_assets", "unrestricted_net_assets", "totnetassetsend"],
+    "program_expenses": ["program_expenses", "program_service_expenses", "program_services"]
+  }
+}

@@ -1,28 +1,71 @@
 ﻿import json
-import logging
-from .utils import file_exists
+from pathlib import Path
 
-def run(input_file: str, fmt: str) -> None:
-    """Generate a report from scored data."""
-    if not file_exists(input_file):
-        logging.error(f"Input file {input_file} not found.")
-        return
+import pandas as pd
 
-    try:
-        with open(input_file, encoding="utf-8") as f:
-            result = json.load(f)
-    except (OSError, json.JSONDecodeError) as e:
-        logging.error(f"Could not read/parse {input_file}: {e}")
-        return
+from .utils import read_json
 
-    if fmt == "brief":
-        print("\n=== TONY BRIEF REPORT ===")
-        print(f"Entity: {result['entity_type']}")
-        print(f"Horizon: {result['horizon']} years")
-        print(f"FSF: {result['fsf']}")
-        print(f"Persistence: {result['persistence']}")
-        print(f"PIS: {result['pis']}")
-        print(f"Unity: {result['unity']}")
-        print("=========================\n")
+
+def _markdown_report(result: dict) -> str:
+    summary = result["summary"]
+    history = pd.DataFrame(result["history"])
+    lines = [
+        "# TONY Risk Report",
+        "",
+        f"- Entity type: {result['entity_type']}",
+        f"- Horizon: {result['horizon']} months",
+        f"- Continuity: {summary['continuity_months']} months",
+        f"- Risk probability: {summary['risk_probability']}",
+        f"- Descriptor: {summary['descriptor']}",
+        "",
+        "## Historical features",
+        "",
+        history.to_markdown(index=False),
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _html_report(result: dict) -> str:
+    summary = result["summary"]
+    history = pd.DataFrame(result["history"])
+    return f"""
+<!doctype html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <title>TONY Risk Report</title>
+  <style>
+    body {{ font-family: Georgia, serif; margin: 2rem auto; max-width: 960px; color: #1e293b; }}
+    .hero {{ background: linear-gradient(120deg, #f4f1de, #d9ed92); padding: 1.5rem; border-radius: 16px; }}
+    table {{ border-collapse: collapse; width: 100%; margin-top: 1rem; }}
+    th, td {{ padding: 0.75rem; border-bottom: 1px solid #cbd5e1; text-align: left; }}
+  </style>
+</head>
+<body>
+  <section class=\"hero\">
+    <h1>TONY Risk Report</h1>
+    <p><strong>Descriptor:</strong> {summary['descriptor']}</p>
+    <p><strong>Continuity:</strong> {summary['continuity_months']} months</p>
+    <p><strong>Risk probability:</strong> {summary['risk_probability']}</p>
+  </section>
+  {history.to_html(index=False)}
+</body>
+</html>
+""".strip()
+
+
+def run(input_file: str, fmt: str, out_file: str | None = None) -> str:
+    result = read_json(input_file)
+    if fmt == "json":
+        content = json.dumps(result, indent=2)
+    elif fmt == "html":
+        content = _html_report(result)
     else:
-        print(json.dumps(result, indent=2))
+        content = _markdown_report(result)
+
+    if out_file:
+        Path(out_file).write_text(content, encoding="utf-8")
+    else:
+        print(content)
+    return content
