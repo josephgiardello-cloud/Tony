@@ -482,3 +482,8 @@ def test_score_includes_broader_organizational_and_financial_depth_metrics(tmp_p
     assert summary["program_impact_score"] is not None
     assert summary["organizational_health_score"] is not None
     assert summary["legal_reputation_risk_score"] is not None
+    assert isinstance(summary["scenario_stress_tests"], list)
+    assert len(summary["scenario_stress_tests"]) >= 2
+    assert summary["scenario_worst_case_probability"] >= summary["final_risk_probability"]
+    assert isinstance(summary["plain_language_explanation"], list)
+    assert len(summary["plain_language_explanation"]) >= 1

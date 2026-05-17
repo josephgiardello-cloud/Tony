@@ -197,6 +197,24 @@
     "simulations": 250,
     "feature_noise_scale": 0.12
   },
+  "scenario_testing": {
+    "scenarios": [
+      {
+        "name": "moderate_stress",
+        "revenue_shock_pct": 0.1,
+        "expense_shock_pct": 0.06,
+        "reserve_haircut_pct": 0.1,
+        "donor_loss_pct": 0.08
+      },
+      {
+        "name": "severe_stress",
+        "revenue_shock_pct": 0.2,
+        "expense_shock_pct": 0.12,
+        "reserve_haircut_pct": 0.2,
+        "donor_loss_pct": 0.15
+      }
+    ]
+  },
   "final_index": {
     "ml_weight": 0.7,
     "health_weight": 0.3

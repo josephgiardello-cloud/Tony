@@ -1140,6 +1140,117 @@ def _organizational_health(metadata: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _scenario_stress_tests(
+    latest_row: pd.Series,
+    baseline_probability: float,
+    donor_top_share: float | None,
+    config: dict[str, Any],
+) -> dict[str, Any]:
+    scenario_cfg = config.get("scenario_testing", {}) if isinstance(config.get("scenario_testing"), dict) else {}
+    scenarios = scenario_cfg.get("scenarios", [])
+    if not isinstance(scenarios, list) or not scenarios:
+        scenarios = [
+            {"name": "moderate_stress", "revenue_shock_pct": 0.10, "expense_shock_pct": 0.06, "reserve_haircut_pct": 0.10, "donor_loss_pct": 0.08},
+            {"name": "severe_stress", "revenue_shock_pct": 0.20, "expense_shock_pct": 0.12, "reserve_haircut_pct": 0.20, "donor_loss_pct": 0.15},
+        ]
+
+    revenue = float(latest_row.get("revenue") or 0.0)
+    expenses = float(latest_row.get("expenses") or 0.0)
+    reserves = float(_first_numeric(latest_row, ["cash_and_equivalents", "cash", "reserves", "unrestricted_net_assets"]) or 0.0)
+    liabilities_to_assets = float(latest_row.get("liabilities_to_assets") or 0.0)
+
+    results: list[dict[str, Any]] = []
+    probabilities = [float(min(max(baseline_probability, 0.0), 1.0))]
+
+    for raw_scenario in scenarios:
+        if not isinstance(raw_scenario, dict):
+            continue
+        name = str(raw_scenario.get("name", "stress")).strip() or "stress"
+        rev_shock = min(max(float(raw_scenario.get("revenue_shock_pct", 0.0)), 0.0), 0.9)
+        exp_shock = min(max(float(raw_scenario.get("expense_shock_pct", 0.0)), 0.0), 0.9)
+        reserve_haircut = min(max(float(raw_scenario.get("reserve_haircut_pct", 0.0)), 0.0), 0.95)
+        donor_loss = min(max(float(raw_scenario.get("donor_loss_pct", 0.0)), 0.0), 0.95)
+
+        stressed_revenue = revenue * (1.0 - rev_shock)
+        stressed_expenses = expenses * (1.0 + exp_shock)
+        stressed_margin = (stressed_revenue - stressed_expenses) / stressed_revenue if stressed_revenue > 0 else -1.0
+
+        stressed_monthly_burn = (stressed_expenses / 12.0) if stressed_expenses > 0 else None
+        stressed_reserves = reserves * (1.0 - reserve_haircut)
+        stressed_continuity = (stressed_reserves / stressed_monthly_burn) if stressed_monthly_burn and stressed_monthly_burn > 0 else 0.0
+
+        stressed_donor_share = None
+        if donor_top_share is not None:
+            stressed_donor_share = min(max(float(donor_top_share) + donor_loss, 0.0), 1.0)
+
+        # Deterministic stress uplift with transparent components.
+        delta_margin = max(0.0, -stressed_margin) * 0.50
+        delta_liquidity = max(0.0, 3.0 - float(stressed_continuity)) / 6.0 * 0.25
+        delta_donor = max(0.0, (stressed_donor_share or 0.0) - 0.35) * 0.25
+        delta_leverage = 0.10 if liabilities_to_assets > 1.0 else 0.0
+
+        scenario_probability = min(max(baseline_probability + delta_margin + delta_liquidity + delta_donor + delta_leverage, 0.0), 1.0)
+        probabilities.append(float(scenario_probability))
+
+        results.append(
+            {
+                "scenario": name,
+                "stressed_operating_margin": round(float(stressed_margin), 4),
+                "stressed_reserve_months": round(float(stressed_continuity), 2),
+                "stressed_donor_top_share": round(float(stressed_donor_share), 4) if stressed_donor_share is not None else None,
+                "scenario_risk_probability": round(float(scenario_probability), 4),
+            }
+        )
+
+    return {
+        "scenario_stress_tests": results,
+        "scenario_worst_case_probability": round(float(max(probabilities)), 4),
+        "scenario_median_probability": round(float(np.median(probabilities)), 4),
+    }
+
+
+def _plain_language_explanation(summary: dict[str, Any]) -> list[str]:
+    notes: list[str] = []
+
+    final_prob = summary.get("final_risk_probability")
+    if isinstance(final_prob, (float, int)):
+        if final_prob >= 0.65:
+            notes.append("Overall risk is elevated because the final risk probability is above 0.65.")
+        elif final_prob >= 0.4:
+            notes.append("Overall risk is conditional because the final risk probability is between 0.40 and 0.65.")
+        else:
+            notes.append("Overall risk is lower based on current financial and organizational signals.")
+
+    altman_zone = None
+    altman_payload = summary.get("altman")
+    if isinstance(altman_payload, dict):
+        altman_zone = altman_payload.get("altman_zone")
+    if altman_zone == "distress":
+        notes.append("Altman Z'' places the organization in the distress zone.")
+    elif altman_zone == "grey":
+        notes.append("Altman Z'' places the organization in a cautionary grey zone.")
+
+    current_ratio = summary.get("current_ratio")
+    if isinstance(current_ratio, (float, int)) and float(current_ratio) < 1.0:
+        notes.append("Short-term liquidity is tight because the current ratio is below 1.0.")
+
+    fundraising_cost = summary.get("fundraising_cost_to_raise_dollar")
+    if isinstance(fundraising_cost, (float, int)) and float(fundraising_cost) > 0.35:
+        notes.append("Fundraising efficiency is weak because cost to raise one dollar exceeds 0.35.")
+
+    org_health = summary.get("organizational_health_score")
+    if isinstance(org_health, (float, int)) and float(org_health) < 0.45:
+        notes.append("Organizational-health signals are weak across governance, operations, or people metrics.")
+
+    worst_case = summary.get("scenario_worst_case_probability")
+    if isinstance(worst_case, (float, int)) and isinstance(final_prob, (float, int)) and float(worst_case) - float(final_prob) > 0.15:
+        notes.append("Stress scenarios materially worsen risk, indicating limited downside resilience.")
+
+    if not notes:
+        notes.append("No dominant red flags were detected in the current scoring profile.")
+    return notes
+
+
 def _adjusted_risk_probability(
     base_prob: float,
     adjustments: dict[str, float | None],
@@ -1323,6 +1434,12 @@ def run(
         organizational_health_score=organizational_health.get("organizational_health_score"),
         legal_reputation_risk_score=organizational_health.get("legal_reputation_risk_score"),
     )
+    scenario_testing = _scenario_stress_tests(
+        latest_row=latest,
+        baseline_probability=final_risk_probability,
+        donor_top_share=donor_quality.get("donor_top_share"),
+        config=config,
+    )
 
     history_frame = feature_frame[
         [
@@ -1398,6 +1515,7 @@ def run(
         **financial_depth,
         **compensation,
         **organizational_health,
+        **scenario_testing,
         "continuity_inputs": {
             "unrestricted_net_assets": round(unrestricted_net_assets, 2),
             "annual_expenses": round(annual_expenses, 2),
@@ -1405,6 +1523,7 @@ def run(
         },
         **explanation,
     }
+    summary["plain_language_explanation"] = _plain_language_explanation(summary)
 
     details = {
         "layer_1_raw_features": {
