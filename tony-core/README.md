@@ -160,10 +160,14 @@ The repository includes baseline files sourced from public external references:
 
 - `baselines/external_calibration_baseline.csv`
 : Seed dataset built from IRS bulk datasets (Pub 78 active records and Automatic Revocation list), plus a Charity Navigator public rating fact for contrast.
+- `baselines/calibration_external_benchmark.csv`
+: Upload-ready calibration file for dashboard/CLI with required columns `risk_probability` and `outcome`, enriched with public evidence metadata.
 - `baselines/external_compliance_controls.json`
 : Control baseline mapped to public sources (IRS filing requirements, IRS TEOS bulk datasets, OFAC sanctions resources, Charity Navigator accountability indicators).
 - `baselines/compliance_profile_template.json`
 : Ready-to-upload compliance profile template for dashboard/CLI audits.
+- `baselines/compliance_external_baseline_profile.json`
+: Upload-ready compliance profile aligned to external standards controls (all core controls populated).
 
 ## Scoring model
 

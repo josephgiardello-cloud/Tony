@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "name": "External standards aligned baseline profile",
+    "retrieved_at": "2026-05-16",
+    "sources": [
+      "https://www.irs.gov/charities-non-profits/annual-exempt-organization-information-returns",
+      "https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads",
+      "https://ofac.treasury.gov/",
+      "https://www.charitynavigator.org/ein/530196605"
+    ]
+  },
+  "governance": {
+    "conflict_policy": true,
+    "annual_attestations": true,
+    "board_independence": true,
+    "related_party_review": true
+  },
+  "filings": {
+    "calendar": true,
+    "due_dates": true,
+    "late_escalation": true,
+    "overdue_workflow": true
+  },
+  "fiduciary": {
+    "restricted_funds": true,
+    "restriction_checks": true,
+    "grant_conditions": true,
+    "deliverable_tracking": true
+  },
+  "third_party": {
+    "sanctions_screening": true,
+    "aml_checks": true,
+    "vendor_due_diligence": true,
+    "renewal_checks": true
+  },
+  "policy": {
+    "policy_versions": true,
+    "attestations": true
+  },
+  "incident": {
+    "incident_workflow": true,
+    "remediation_tracking": true
+  },
+  "access": {
+    "rbac": true,
+    "audit_log": true
+  }
+}

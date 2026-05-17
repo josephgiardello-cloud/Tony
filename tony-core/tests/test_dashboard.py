@@ -199,3 +199,34 @@ def test_dashboard_post_compliance_updates_results(
     assert b"Compliance gap assessment completed." in response.data
     assert b"Compliance Gap Results" in response.data
     assert b"FID-001" in response.data
+
+
+def test_dashboard_basic_mode_shows_grant_standard_metrics(normalized_payload: Path, tmp_path: Path) -> None:
+    scored_path = _scored_fixture(normalized_payload, tmp_path)
+    app = create_app(str(scored_path))
+
+    with app.test_client() as client:
+        response = client.get("/?mode=basic")
+
+    assert response.status_code == 200
+    assert b"Basic Mode" in response.data
+    assert b"Grant Recommendation" in response.data
+    assert b"Operating Margin" in response.data
+    assert b"Program Expense Ratio" in response.data
+    assert b"Leverage (Liabilities/Assets)" in response.data
+    assert b"Revenue Growth (YoY)" in response.data
+    assert b"Feature History (Standard)" in response.data
+    assert b"Model Diagnostics" not in response.data
+
+
+def test_dashboard_full_mode_shows_full_diagnostics(normalized_payload: Path, tmp_path: Path) -> None:
+    scored_path = _scored_fixture(normalized_payload, tmp_path)
+    app = create_app(str(scored_path))
+
+    with app.test_client() as client:
+        response = client.get("/?mode=full")
+
+    assert response.status_code == 200
+    assert b"Full Mode" in response.data
+    assert b"Model Diagnostics" in response.data
+    assert b"Compensation Burden" in response.data

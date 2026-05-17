@@ -1,0 +1,19 @@
+risk_probability,outcome,ein,organization_name,external_status,external_source,evidence_url,retrieved_at
+0.93,1,000003154,OAKLEAF FOREST TENANT MANAGEMENT,revoked,IRS Automatic Revocation List,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,2026-05-16
+0.91,1,000004101,SOUTH LAFOURCHE QUARTERBACK CLUB,revoked,IRS Automatic Revocation List,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,2026-05-16
+0.88,1,000065837,OHIO STATE GRANGE OF PATRONS OF HUSBANDRY,revoked,IRS Automatic Revocation List,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,2026-05-16
+0.86,1,000107893,INTERNATIONAL ASSOCIATION OF LIONS,revoked,IRS Automatic Revocation List,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,2026-05-16
+0.84,1,000262358,KEY CLUB INTERNATIONAL,revoked,IRS Automatic Revocation List,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,2026-05-16
+0.82,1,000267075,INTERNATIONAL ASSOCIATION OF LIONS,revoked,IRS Automatic Revocation List,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,2026-05-16
+0.79,1,000344394,PANDAS FOUNDATION INC,revoked,IRS Automatic Revocation List,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,2026-05-16
+0.76,1,000504434,FAMILY DAY CARE SERVICES INC,revoked,IRS Automatic Revocation List,https://apps.irs.gov/pub/epostcard/data-download-revocation.zip,2026-05-16
+0.31,0,000587764,Iglesia Bethesda Inc.,active,IRS Pub 78 Active Exempt Organizations,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,2026-05-16
+0.29,0,000635913,Ministerio Apostolico Jesucristo Es El Senor Inc.,active,IRS Pub 78 Active Exempt Organizations,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,2026-05-16
+0.27,0,000765634,Mercy Chapel International,active,IRS Pub 78 Active Exempt Organizations,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,2026-05-16
+0.26,0,000841363,Agape House of Prayer,active,IRS Pub 78 Active Exempt Organizations,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,2026-05-16
+0.24,0,000852649,Bethany Presbyterian Church,active,IRS Pub 78 Active Exempt Organizations,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,2026-05-16
+0.23,0,000889899,Academic and Behavioral Clinic Inc.,active,IRS Pub 78 Active Exempt Organizations,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,2026-05-16
+0.22,0,001347537,Restoration of Hope Church Ministries,active,IRS Pub 78 Active Exempt Organizations,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,2026-05-16
+0.20,0,002030711,Church of Our Lord Jesus Christ of Macedonia,active,IRS Pub 78 Active Exempt Organizations,https://apps.irs.gov/pub/epostcard/data-download-pub78.zip,2026-05-16
+0.12,0,530196605,American Red Cross,four_star_99pct,Charity Navigator Overall Rating,https://www.charitynavigator.org/ein/530196605,2026-05-16
+0.18,0,131740110,National Railroad Passenger Corporation (Amtrak),unrated,Charity Navigator Profile Context,https://www.charitynavigator.org/ein/131740110,2026-05-16

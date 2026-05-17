@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
@@ -13,28 +14,124 @@ from .utils import parse_years
 from .utils import read_json
 
 
+BASELINES_DIR = Path(__file__).resolve().parent.parent / "baselines"
+DEFAULT_CALIBRATION_FILE = BASELINES_DIR / "calibration_external_benchmark.csv"
+DEFAULT_COMPLIANCE_FILE = BASELINES_DIR / "compliance_external_baseline_profile.json"
+
+
+def _pretty_label(value: str) -> str:
+    return value.replace("_", " ").strip().title()
+
+
+def _chart_layout(title: str, xaxis_title: str = "Year", yaxis_title: str = "Value") -> dict:
+    return {
+        "title": {
+            "text": title,
+            "x": 0.01,
+            "xanchor": "left",
+            "font": {"size": 17, "family": "Manrope, sans-serif", "color": "#12343b"},
+        },
+        "template": "plotly_white",
+        "paper_bgcolor": "rgba(0,0,0,0)",
+        "plot_bgcolor": "#ffffff",
+        "margin": {"l": 48, "r": 20, "t": 58, "b": 48},
+        "font": {"family": "Manrope, sans-serif", "size": 12, "color": "#1f2a37"},
+        "colorway": ["#0b6e4f", "#12749a", "#f59e0b", "#ef4444", "#334155"],
+        "xaxis": {
+            "title": xaxis_title,
+            "showgrid": False,
+            "linecolor": "#bfc7d1",
+            "tickcolor": "#bfc7d1",
+            "tickmode": "linear",
+            "dtick": 1,
+            "automargin": True,
+            "zeroline": False,
+        },
+        "yaxis": {
+            "title": yaxis_title,
+            "gridcolor": "#e6ebf1",
+            "linecolor": "#bfc7d1",
+            "tickcolor": "#bfc7d1",
+            "automargin": True,
+            "zeroline": False,
+        },
+        "legend": {
+            "orientation": "v",
+            "yanchor": "top",
+            "y": 1.0,
+            "xanchor": "left",
+            "x": 1.02,
+            "bgcolor": "rgba(255,255,255,0.65)",
+            "bordercolor": "#dbe2ea",
+            "borderwidth": 1,
+            "font": {"size": 11},
+        },
+        "hovermode": "x unified",
+        "hoverlabel": {"bgcolor": "#0f172a", "font": {"color": "#f8fafc"}},
+    }
+
+
 def _build_charts(payload: dict) -> dict[str, str]:
     history = pd.DataFrame(payload.get("history", []))
     if history.empty:
         return {"trend": "{}", "mix": "{}", "risk": "{}"}
 
+    continuity_column = "continuity_months"
+    if "continuity_months" not in history.columns and "continuity_months_model" in history.columns:
+        continuity_column = "continuity_months_model"
+
     trend = px.line(
         history,
         x="year",
-        y=["continuity_months", "operating_margin", "program_expense_ratio"],
+        y=[continuity_column, "operating_margin", "program_expense_ratio"],
         markers=True,
-        title="Financial resilience trends",
+        title="Financial Resilience Trends",
     )
     mix = px.bar(
         history,
         x="year",
         y=["liabilities_to_assets", "revenue_volatility"],
         barmode="group",
-        title="Balance sheet pressure",
+        title="Balance Sheet Pressure",
     )
-    risk = px.area(history, x="year", y="risk_probability", title="Model risk probability")
-    for figure in (trend, mix, risk):
-        figure.update_layout(template="plotly_white", margin=dict(l=20, r=20, t=60, b=20))
+    risk = px.area(history, x="year", y="risk_probability", title="Model Risk Probability")
+
+    trend_names = {
+        continuity_column: "Continuity Months",
+        "operating_margin": "Operating Margin",
+        "program_expense_ratio": "Program Expense Ratio",
+    }
+    mix_names = {
+        "liabilities_to_assets": "Liabilities / Assets",
+        "revenue_volatility": "Revenue Volatility",
+    }
+
+    trend.for_each_trace(
+        lambda trace: trace.update(
+            name=trend_names.get(trace.name, _pretty_label(trace.name)),
+            hovertemplate="%{x}: %{y:.3f}<extra>%{fullData.name}</extra>",
+        )
+    )
+    mix.for_each_trace(
+        lambda trace: trace.update(
+            name=mix_names.get(trace.name, _pretty_label(trace.name)),
+            hovertemplate="%{x}: %{y:.3f}<extra>%{fullData.name}</extra>",
+        )
+    )
+    risk.for_each_trace(lambda trace: trace.update(name="Risk Probability", hovertemplate="%{x}: %{y:.1%}<extra></extra>"))
+
+    trend.update_traces(line={"width": 3}, marker={"size": 7})
+    mix.update_traces(marker_line_color="#f8fafc", marker_line_width=1)
+    risk.update_traces(line={"width": 2.5}, fillcolor="rgba(15, 118, 110, 0.22)")
+
+    trend.update_layout(_chart_layout("Financial Resilience Trends", yaxis_title="Normalized financial metrics"))
+    mix.update_layout(_chart_layout("Balance Sheet Pressure", yaxis_title="Risk pressure metrics"))
+    risk.update_layout(_chart_layout("Model Risk Probability", yaxis_title="Probability"))
+    risk.update_yaxes(range=[0, 1], tickformat=".0%")
+    risk.add_hrect(y0=0.0, y1=0.35, fillcolor="rgba(16,185,129,0.12)", line_width=0)
+    risk.add_hrect(y0=0.35, y1=0.6, fillcolor="rgba(245,158,11,0.12)", line_width=0)
+    risk.add_hrect(y0=0.6, y1=1.0, fillcolor="rgba(239,68,68,0.1)", line_width=0)
+
     return {
         "trend": trend.to_json(),
         "mix": mix.to_json(),
@@ -58,6 +155,7 @@ def _build_calibration_chart(calibration_result: dict | None) -> str:
             y=frame["observed_rate"],
             mode="markers+lines",
             name="Observed",
+            hovertemplate="Predicted: %{x:.3f}<br>Observed: %{y:.3f}<extra></extra>",
         )
     )
     fig.add_trace(
@@ -65,16 +163,13 @@ def _build_calibration_chart(calibration_result: dict | None) -> str:
             x=[0, 1],
             y=[0, 1],
             mode="lines",
-            name="Perfect calibration",
+            name="Perfect Calibration",
             line={"dash": "dash"},
+            hovertemplate="Predicted: %{x:.3f}<br>Observed: %{y:.3f}<extra></extra>",
         )
     )
     fig.update_layout(
-        title="Calibration curve",
-        xaxis_title="Predicted probability",
-        yaxis_title="Observed outcome rate",
-        template="plotly_white",
-        margin=dict(l=20, r=20, t=60, b=20),
+        _chart_layout("Calibration Curve", xaxis_title="Predicted probability", yaxis_title="Observed outcome rate")
     )
     return fig.to_json()
 
@@ -89,7 +184,7 @@ def _build_compliance_chart(compliance_result: dict | None) -> str:
 
     frame = pd.DataFrame(
         [
-            {"domain": domain, "met": values.get("met", 0), "missing": values.get("missing", 0)}
+            {"domain": _pretty_label(domain), "met": values.get("met", 0), "missing": values.get("missing", 0)}
             for domain, values in domain_summary.items()
         ]
     )
@@ -98,11 +193,7 @@ def _build_compliance_chart(compliance_result: dict | None) -> str:
     fig.add_trace(go.Bar(name="Missing", x=frame["domain"], y=frame["missing"]))
     fig.update_layout(
         barmode="group",
-        title="Compliance controls by domain",
-        xaxis_title="Domain",
-        yaxis_title="Control count",
-        template="plotly_white",
-        margin=dict(l=20, r=20, t=60, b=20),
+        **_chart_layout("Compliance Controls by Domain", xaxis_title="Domain", yaxis_title="Control count"),
     )
     return fig.to_json()
 
@@ -131,6 +222,8 @@ def create_app(data_path: str) -> Flask:
     @app.route("/", methods=["GET", "POST"])
     def index() -> str:
         payload = _load_payload(data_path)
+        query_mode = (request.args.get("mode") or "").strip().lower()
+        initial_mode = query_mode if query_mode in {"basic", "full"} else "basic"
         error_message = ""
         status_message = ""
         calibration_result: dict | None = None
@@ -140,18 +233,23 @@ def create_app(data_path: str) -> Flask:
             "horizon": "12",
             "ein": "",
             "years": "",
+            "view_mode": initial_mode,
         }
 
         if request.method == "POST":
             form_state["entity_type"] = request.form.get("entity_type", "nonprofit")
-            form_state["horizon"] = request.form.get("horizon", "12")
+            form_state["horizon"] = request.form.get("horizon", form_state["horizon"])
             form_state["ein"] = request.form.get("ein", "")
             form_state["years"] = request.form.get("years", "")
+            posted_mode = (request.form.get("view_mode") or "").strip().lower()
+            form_state["view_mode"] = posted_mode if posted_mode in {"basic", "full"} else form_state["view_mode"]
             action = request.form.get("action", "").strip().lower()
 
             try:
                 entity_type = (form_state["entity_type"] or "nonprofit").strip() or "nonprofit"
                 horizon = int(form_state["horizon"] or "12")
+                score_horizon = horizon
+                ingest_payload: dict | None = None
 
                 with tempfile.TemporaryDirectory(prefix="tony_dashboard_") as work_dir:
                     normalized_path = os.path.join(work_dir, "normalized.json")
@@ -165,7 +263,7 @@ def create_app(data_path: str) -> Flask:
                         filename = secure_filename(uploaded.filename) or "uploaded_data.csv"
                         source_path = os.path.join(work_dir, filename)
                         uploaded.save(source_path)
-                        ingest.run(source_path, None, [], normalized_path)
+                        ingest_payload = ingest.run(source_path, None, [], normalized_path)
                     elif action == "propublica":
                         ein = (form_state["ein"] or "").strip()
                         if not ein:
@@ -173,32 +271,41 @@ def create_app(data_path: str) -> Flask:
 
                         years_raw = (form_state["years"] or "").strip()
                         years = parse_years(years_raw) if years_raw else []
-                        ingest.run("propublica", ein, years, normalized_path)
+                        ingest_payload = ingest.run("propublica", ein, years, normalized_path)
+                        filing_years = ingest_payload.get("metadata", {}).get("years", []) if ingest_payload else []
+                        if isinstance(filing_years, list) and filing_years:
+                            score_horizon = len(filing_years)
                     elif action == "calibrate":
                         uploaded = request.files.get("calibration_file")
-                        if not uploaded or not uploaded.filename:
+                        if uploaded and uploaded.filename:
+                            filename = secure_filename(uploaded.filename) or "calibration.csv"
+                            source_path = os.path.join(work_dir, filename)
+                            uploaded.save(source_path)
+                        elif DEFAULT_CALIBRATION_FILE.exists():
+                            source_path = str(DEFAULT_CALIBRATION_FILE)
+                        else:
                             raise ValueError("Select a calibration CSV with risk_probability and outcome columns.")
 
-                        filename = secure_filename(uploaded.filename) or "calibration.csv"
-                        source_path = os.path.join(work_dir, filename)
-                        uploaded.save(source_path)
                         calibration_result = calibration.run(source_path, os.path.join(work_dir, "calibration.json"))
                         status_message = "Calibration completed with external benchmark data."
                     elif action == "compliance":
                         uploaded = request.files.get("compliance_file")
-                        if not uploaded or not uploaded.filename:
+                        if uploaded and uploaded.filename:
+                            filename = secure_filename(uploaded.filename) or "compliance_profile.json"
+                            source_path = os.path.join(work_dir, filename)
+                            uploaded.save(source_path)
+                        elif DEFAULT_COMPLIANCE_FILE.exists():
+                            source_path = str(DEFAULT_COMPLIANCE_FILE)
+                        else:
                             raise ValueError("Select a compliance profile JSON file.")
 
-                        filename = secure_filename(uploaded.filename) or "compliance_profile.json"
-                        source_path = os.path.join(work_dir, filename)
-                        uploaded.save(source_path)
                         compliance_result = compliance.run(source_path, os.path.join(work_dir, "compliance_report.json"))
                         status_message = "Compliance gap assessment completed."
                     else:
                         raise ValueError("Unsupported dashboard action.")
 
                     if action in {"upload", "propublica"}:
-                        payload = score.run(normalized_path, entity_type, horizon, scored_path)
+                        payload = score.run(normalized_path, entity_type, score_horizon, scored_path)
                         status_message = "Dashboard updated with fresh scoring output."
             except Exception as exc:
                 error_message = str(exc)
@@ -219,6 +326,7 @@ def create_app(data_path: str) -> Flask:
             error_message=error_message,
             status_message=status_message,
             form_state=form_state,
+            view_mode=form_state.get("view_mode", "basic"),
         )
 
     return app
