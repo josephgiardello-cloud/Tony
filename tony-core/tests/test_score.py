@@ -25,6 +25,9 @@ def test_score_risk_adjustable_returns_low_risk_descriptor() -> None:
 
     assert result["ContinuityDescriptor"] == "Low Risk (Excellent)"
     assert result["ModelRiskProbability"] < 0.4
+    assert "NormalizedFeatures" in result
+    assert "feature_contributions" in result
+    assert len(result["top_drivers"]) == 3
 
 
 def test_score_run_writes_history(normalized_payload: Path, tmp_path: Path) -> None:
@@ -35,6 +38,8 @@ def test_score_run_writes_history(normalized_payload: Path, tmp_path: Path) -> N
     assert stored["summary"]["descriptor"] == result["summary"]["descriptor"]
     assert len(stored["history"]) == 2
     assert stored["history"][1]["risk_probability"] < 0.5
+    assert "normalized_features" in stored["summary"]
+    assert "feature_contributions" in stored["summary"]
 
 
 def test_score_risk_adjustable_sparse_payload_returns_unknown_descriptor() -> None:
@@ -64,3 +69,22 @@ def test_score_run_raises_on_empty_records(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="No records available"):
         run(str(input_file), "nonprofit", 12, str(out_file))
+
+
+def test_score_continuity_is_capped_for_tiny_expenses() -> None:
+    result = score_risk_adjustable(
+        {
+            "year": 2025,
+            "revenue": 500000,
+            "expenses": 1,
+            "assets": 600000,
+            "liabilities": 150000,
+            "unrestricted_net_assets": 900000,
+            "program_expenses": 300000,
+        },
+        "nonprofit",
+        12,
+        6.0,
+        3.0,
+    )
+    assert result["ContinuityRiskScore"] <= 120

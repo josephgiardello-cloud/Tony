@@ -157,12 +157,27 @@ The scorer derives these features with pandas:
 - `liabilities_to_assets`
 - `revenue_volatility`
 
-It then trains a scikit-learn logistic regression model on the observed filing history plus bundled reference profiles. The output includes:
+It then trains a scikit-learn logistic regression model on observed filing history plus bundled reference profiles (or an external reference profile file, if configured). The output includes:
 
 - A numeric risk probability
 - A weighted health score
 - A continuity descriptor
+- Normalized feature values used for weighted scoring
+- Feature contribution diagnostics and top risk drivers
 - Per-year feature history for reports and dashboards
+
+### Model robustness controls
+
+- Entity-specific thresholds via `entity_thresholds` (for example `hospital`, `foundation`, `nonprofit_small`).
+- Configurable labeling rules under `labeling`.
+- Optional external reference profile source via `model.reference_profiles_file` (CSV or JSON).
+- Optional pre-trained model loading via `model.pretrained_model_path`.
+- In-process model caching via `model.cache_models` to avoid retraining on identical data.
+
+### Weighted score normalization
+
+Weighted score inputs are normalized using bounded sigmoid transforms driven by `normalization` settings in `tony/default_config.json`.
+Each feature has explicit `center`, `scale`, and winsorization-style `low`/`high` bounds to avoid unstable outputs from extreme values.
 
 ## Use cases
 

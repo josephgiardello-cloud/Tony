@@ -12,6 +12,69 @@
     "risk_probability_high": 0.66,
     "risk_probability_moderate": 0.4
   },
+  "entity_thresholds": {
+    "hospital": {
+      "continuity_low": 4.0,
+      "continuity_moderate": 2.0,
+      "risk_probability_high": 0.7,
+      "risk_probability_moderate": 0.45
+    },
+    "foundation": {
+      "continuity_low": 10.0,
+      "continuity_moderate": 6.0,
+      "risk_probability_high": 0.62,
+      "risk_probability_moderate": 0.35
+    },
+    "nonprofit_small": {
+      "continuity_low": 8.0,
+      "continuity_moderate": 4.0,
+      "risk_probability_high": 0.64,
+      "risk_probability_moderate": 0.38
+    }
+  },
+  "labeling": {
+    "risk_points_cutoff": 3,
+    "severe_margin": -0.1,
+    "weak_program_ratio": 0.55,
+    "high_revenue_volatility": 0.35
+  },
+  "normalization": {
+    "continuity_months": {
+      "center": 6.0,
+      "scale": 3.0,
+      "low": -24.0,
+      "high": 120.0,
+      "positive": true
+    },
+    "operating_margin": {
+      "center": 0.03,
+      "scale": 0.08,
+      "low": -0.5,
+      "high": 0.5,
+      "positive": true
+    },
+    "program_expense_ratio": {
+      "center": 0.7,
+      "scale": 0.12,
+      "low": 0.0,
+      "high": 1.0,
+      "positive": true
+    },
+    "liabilities_to_assets": {
+      "center": 0.6,
+      "scale": 0.2,
+      "low": 0.0,
+      "high": 2.0,
+      "positive": false
+    },
+    "revenue_volatility": {
+      "center": 0.2,
+      "scale": 0.12,
+      "low": 0.0,
+      "high": 2.0,
+      "positive": false
+    }
+  },
   "sources": {
     "propublica": {
       "base_url": "https://projects.propublica.org/nonprofits/api/v2"
@@ -19,6 +82,12 @@
   },
   "model": {
     "random_state": 42,
+    "max_iter": 1000,
+    "class_weight": "balanced",
+    "cache_models": true,
+    "pretrained_model_path": "",
+    "save_trained_if_missing": false,
+    "reference_profiles_file": "",
     "reference_profiles": [
       {
         "continuity_months": 1.5,
@@ -51,6 +120,22 @@
         "liabilities_to_assets": 0.35,
         "revenue_volatility": 0.08,
         "risk_label": 0
+      },
+      {
+        "continuity_months": 11.0,
+        "operating_margin": 0.12,
+        "program_expense_ratio": 0.86,
+        "liabilities_to_assets": 0.28,
+        "revenue_volatility": 0.05,
+        "risk_label": 0
+      },
+      {
+        "continuity_months": 0.8,
+        "operating_margin": -0.2,
+        "program_expense_ratio": 0.4,
+        "liabilities_to_assets": 1.2,
+        "revenue_volatility": 0.6,
+        "risk_label": 1
       }
     ]
   },
